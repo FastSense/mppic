@@ -20,6 +20,7 @@ set(packages
   nav2_core 
   nav2_costmap_2d 
   nav2_util
+  grid_map
 )
 
 foreach(pkg IN LISTS packages)
