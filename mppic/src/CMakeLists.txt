@@ -5,13 +5,13 @@ ament_target_dependencies(
   mppic
   ${packages}
 )
-target_link_libraries (mppic CONAN_PKG::xtensor)
+target_link_libraries(mppic CONAN_PKG::xtensor)
 # prevent pluginlib from using boost
-target_compile_definitions (mppic PRIVATE "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
-target_compile_options (mppic PRIVATE -fconcepts)
-
-set_target_properties (mppic
-  PROPERTIES
-  CXX_STANDARD 17
-  CXX_STANDARD_REQUIRED YES
+target_compile_definitions(mppic PRIVATE "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
+target_compile_options(mppic PRIVATE -fconcepts)
+set_target_properties(mppic
+    PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
 )
+
