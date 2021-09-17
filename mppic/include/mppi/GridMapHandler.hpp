@@ -5,7 +5,11 @@
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <nav_msgs/msg/path.hpp>
+#include <grid_map_msgs/msg/grid_map.hpp>
+
 #include <grid_map_ros/grid_map_ros.hpp>
+
+#include <mutex>
 
 namespace mppi::handlers
 {
@@ -17,19 +21,21 @@ public:
   GridMapHandler() = default;
   ~GridMapHandler() = default;
 
-  GridMapHandler(
+  void on_configure(
     const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> & parent,
     const std::string & node_name,
-    const std::string & input_topic,
     const std::shared_ptr<grid_map::GridMap> & grid_map,
-    const std::shared_ptr<tf2_ros::Buffer> & buffer)
-  : parent_(parent), node_name_(node_name),
-    input_topic_(input_topic), grid_map_(grid_map), tf_buffer_(buffer) {}
+    const std::shared_ptr<tf2_ros::Buffer> & buffer);
 
-  void on_configure();
   void on_cleanup();
   void on_activate();
   void on_deactivate();
+
+  auto getAccess()
+  -> std::recursive_mutex & 
+  {
+    return access_;
+  }
 
 private:
   void getParams();
@@ -37,15 +43,15 @@ private:
   void gridMapCallback(const grid_map_msgs::msg::GridMap::SharedPtr message);
 
 private:
+  std::recursive_mutex access_;
   std::shared_ptr<rclcpp_lifecycle::LifecycleNode> parent_;
   std::string node_name_;
   std::string input_topic_;
-
   std::shared_ptr<grid_map::GridMap> grid_map_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
   rclcpp::Logger logger_{rclcpp::get_logger("MPPI GridMapHandler")};
-  rclcpp::Subscription<grid_map_msgs::msg::GridMap>::SharedPtr subscriber_;
+  std::shared_ptr<rclcpp::Subscription<grid_map_msgs::msg::GridMap>> subscriber_;
 };
 
 } // namespace mppi::handlers

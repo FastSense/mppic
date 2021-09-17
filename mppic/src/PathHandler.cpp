@@ -56,7 +56,7 @@ void PathHandler::getParams()
 
 auto PathHandler::transformToGlobalFrame(
   const geometry_msgs::msg::PoseStamped & pose)
-->geometry_msgs::msg::PoseStamped
+-> geometry_msgs::msg::PoseStamped
 {
 
   if (global_plan_.poses.empty()) {

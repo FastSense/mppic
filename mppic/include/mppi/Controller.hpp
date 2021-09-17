@@ -6,7 +6,12 @@
 
 #include "mppi/impl/Optimizer.hpp"
 #include "mppi/impl/PathHandler.hpp"
+#include "mppi/GridMapHandler.hpp"
+
 #include "visualization/TrajectoryVisualizer.hpp"
+#include <grid_map_ros/grid_map_ros.hpp>
+
+#include <grid_map_msgs/msg/grid_map.hpp>
 
 #include "utils/common.hpp"
 #include "utils/geometry.hpp"
@@ -46,7 +51,7 @@ public:
 private:
   void getParams();
   void setPublishers();
-  void createComponents();
+  void configureComponents();
   void handleVisualizations(
     const geometry_msgs::msg::PoseStamped & robot_pose,
     const geometry_msgs::msg::Twist & robot_speed,
@@ -55,6 +60,8 @@ private:
 private:
   std::shared_ptr<rclcpp_lifecycle::LifecycleNode> parent_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
+  std::shared_ptr<grid_map::GridMap> grid_map_;
+
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::string node_name_;
 
@@ -63,6 +70,7 @@ private:
 
   optimization::Optimizer<T, Model> optimizer_;
   handlers::PathHandler path_handler_;
+  handlers::GridMapHandler grid_map_handler_;
   visualization::TrajectoryVisualizer trajectory_visualizer_;
 
   bool visualize_;

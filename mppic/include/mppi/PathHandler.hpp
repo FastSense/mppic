@@ -30,7 +30,7 @@ public:
   void on_deactivate();
 
   void setPath(const nav_msgs::msg::Path & plan) {global_plan_ = plan;}
-  auto getPath()->nav_msgs::msg::Path & {return global_plan_;}
+  auto getPath() -> nav_msgs::msg::Path & {return global_plan_;}
 
   /**
    * @brief transform global plan to local applying constraints,
@@ -39,7 +39,7 @@ public:
    * @return global plan in local frame
    */
   auto transformPath(const geometry_msgs::msg::PoseStamped & robot_pose)
-  ->nav_msgs::msg::Path;
+  -> nav_msgs::msg::Path;
 
 private:
   void getParams();
@@ -53,13 +53,13 @@ private:
   double getMaxCostmapDist();
 
   auto transformToGlobalFrame(const geometry_msgs::msg::PoseStamped & pose)
-  ->geometry_msgs::msg::PoseStamped;
+  -> geometry_msgs::msg::PoseStamped;
 
   template<typename Iter, typename Stamp>
   auto transformGlobalPlan(
     Iter begin, Iter end, const Stamp & stamp,
     const std::string & frame)
-  ->nav_msgs::msg::Path;
+  -> nav_msgs::msg::Path;
 
   auto getGlobalPlanConsideringBounds(const geometry_msgs::msg::PoseStamped & global_pose);
 

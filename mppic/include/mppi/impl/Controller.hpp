@@ -23,9 +23,7 @@ void Controller<T, Model>::configure(
 
   getParams();
   setPublishers();
-  createComponents();
-
-  utils::configure(optimizer_, path_handler_, trajectory_visualizer_);
+  configureComponents();
 }
 
 template<typename T, typename Model>
@@ -97,16 +95,23 @@ void Controller<T, Model>::setPublishers()
 }
 
 template<typename T, typename Model>
-void Controller<T, Model>::createComponents()
+void Controller<T, Model>::configureComponents()
 {
   auto & model = models::NaiveModel<T>;
 
-  optimizer_ = optimization::Optimizer<T>(parent_, node_name_, costmap_ros_, model);
-  path_handler_ =
-    handlers::PathHandler(parent_, node_name_, costmap_ros_, tf_buffer_);
+  optimizer_ = 
+    std::move(optimization::Optimizer<T>(parent_, node_name_, costmap_ros_, model));
 
-  trajectory_visualizer_ = visualization::TrajectoryVisualizer(
-    parent_, costmap_ros_->getGlobalFrameID());
+  path_handler_ =
+    std::move(handlers::PathHandler(parent_, node_name_, costmap_ros_, tf_buffer_));
+
+  grid_map_handler_.on_configure(parent_, node_name_, grid_map_, tf_buffer_);
+
+  trajectory_visualizer_ = 
+    std::move(visualization::TrajectoryVisualizer(parent_, costmap_ros_->getGlobalFrameID()));
+
+
+  utils::configure(optimizer_, path_handler_, trajectory_visualizer_);
 }
 
 } // namespace mppi
