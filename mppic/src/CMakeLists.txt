@@ -1,8 +1,7 @@
 
 add_library(mppic SHARED Controller.cpp PathHandler.cpp GridMapHandler.cpp)
 target_include_directories(mppic PRIVATE ../include)
-ament_target_dependencies(
-  mppic
+ament_target_dependencies(mppic
   ${packages}
 )
 target_link_libraries(mppic CONAN_PKG::xtensor)

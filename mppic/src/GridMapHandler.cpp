@@ -1,5 +1,6 @@
 #include "utils/common.hpp"
 #include "utils/geometry.hpp"
+#include "grid_map_msgs/msg/grid_map.hpp"
 
 #include "mppi/GridMapHandler.hpp"
 
@@ -24,12 +25,14 @@ void GridMapHandler::getParams()
       std::string name = node_name_ + '.' + param_name;
       return utils::getParam(name, default_value, parent_);
     };
+
+  (void) getParam;
 }
 
-void GridMapHandler::createSubscribers() {
+void GridMapHandler::createSubscribers()
+{
   subscriber_ = parent_->create_subscription<grid_map_msgs::msg::GridMap>(
-    input_topic_, 1,
-    std::bind(&GridMapHandler::callback, this, std::placeholders::_1));
+    input_topic_, 1, std::bind(&GridMapHandler::gridMapCallback, this, std::placeholders::_1) );
 }
 
 void GridMapHandler::gridMapCallback(const grid_map_msgs::msg::GridMap::SharedPtr message)

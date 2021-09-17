@@ -10,7 +10,7 @@ include(cmake/conan.cmake)
 include(CTest)
 include(Catch)
 
-set(packages 
+set(packages
   rclcpp 
   pluginlib 
   tf2 
@@ -20,7 +20,8 @@ set(packages
   nav2_core 
   nav2_costmap_2d 
   nav2_util
-  grid_map
+  grid_map_msgs
+  grid_map_ros
 )
 
 foreach(pkg IN LISTS packages)

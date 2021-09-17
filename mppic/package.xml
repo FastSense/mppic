@@ -21,6 +21,7 @@
   <depend>tf2</depend>
   <depend>grid_map</depend>
 
+
   <exec_depend>nav2_bringup</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>

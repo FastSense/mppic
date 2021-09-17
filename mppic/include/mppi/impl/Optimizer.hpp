@@ -21,7 +21,7 @@ auto Optimizer<T, Model>::evalNextBestControl(
   const geometry_msgs::msg::PoseStamped & robot_pose,
   const geometry_msgs::msg::Twist & robot_speed,
   const nav_msgs::msg::Path & plan)
--> geometry_msgs::msg::TwistStamped
+->geometry_msgs::msg::TwistStamped
 {
   for (int i = 0; i < iteration_count_; ++i) {
     generated_trajectories_ = generateNoisedTrajectories(robot_pose, robot_speed);
