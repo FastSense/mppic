@@ -15,6 +15,7 @@
 
 #include "mppi/Models.hpp"
 #include "mppi/impl/Optimizer.hpp"
+#include "grid_map_core/GridMap.hpp"
 
 TEST_CASE("Optimizer evaluates Next Control", "") {
   using T = float;
@@ -23,6 +24,7 @@ TEST_CASE("Optimizer evaluates Next Control", "") {
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>(node_name);
 
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>("cost_map_node");
+  auto grid_map = std::make_shared<grid_map::GridMap>();
   auto st = rclcpp_lifecycle::State{};
 
   auto & model = mppi::models::NaiveModel<T>;
@@ -31,7 +33,7 @@ TEST_CASE("Optimizer evaluates Next Control", "") {
     mppi::optimization::Optimizer<T>();
 
   costmap_ros->on_configure(st);
-  optimizer.on_configure(node, node_name, costmap_ros, model);
+  optimizer.on_configure(node, node_name, costmap_ros, grid_map, model);
   optimizer.on_activate();
 
   size_t poses_count = GENERATE(10, 30, 100);

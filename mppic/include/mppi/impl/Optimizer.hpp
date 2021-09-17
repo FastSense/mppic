@@ -21,7 +21,7 @@ auto Optimizer<T, Model>::evalNextBestControl(
   const geometry_msgs::msg::PoseStamped & robot_pose,
   const geometry_msgs::msg::Twist & robot_speed,
   const nav_msgs::msg::Path & plan)
-->geometry_msgs::msg::TwistStamped
+-> geometry_msgs::msg::TwistStamped
 {
   for (int i = 0; i < iteration_count_; ++i) {
     generated_trajectories_ = generateNoisedTrajectories(robot_pose, robot_speed);
@@ -36,6 +36,7 @@ auto Optimizer<T, Model>::on_configure(
   const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> & parent,
   const std::string & node_name,
   const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> & costmap_ros,
+  const std::shared_ptr<grid_map::GridMap> &grid_map,
   Model && model)
 -> void
 {
@@ -43,6 +44,7 @@ auto Optimizer<T, Model>::on_configure(
   node_name_ = node_name;
   costmap_ros_ = costmap_ros;
   model_ = model;
+  grid_map_ = grid_map;
 
   costmap_ = costmap_ros_->getCostmap();
   inscribed_radius_ = costmap_ros_->getLayeredCostmap()->getInscribedRadius();

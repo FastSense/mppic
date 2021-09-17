@@ -10,6 +10,8 @@
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
 
+#include <grid_map_core/GridMap.hpp>
+
 #include "xtensor/xarray.hpp"
 #include <xtensor/xview.hpp>
 
@@ -28,6 +30,7 @@ public:
     const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> & parent,
     const std::string & node_name,
     const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> & costmap_ros,
+    const std::shared_ptr<grid_map::GridMap> &grid_map,
     Model && model);
 
   void on_cleanup() {}
@@ -212,6 +215,8 @@ private:
   std::string node_name_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   nav2_costmap_2d::Costmap2D * costmap_;
+  std::shared_ptr<grid_map::GridMap> grid_map_;
+
   std::function<Model> model_;
 
   double inflation_cost_scaling_factor_;
@@ -251,6 +256,7 @@ private:
   xt::xtensor<T, 3> batches_;
   xt::xtensor<T, 3> generated_trajectories_;
   xt::xtensor<T, 2> control_sequence_;
+
 
   rclcpp::Logger logger_{rclcpp::get_logger("MPPI Optimizer")};
 };

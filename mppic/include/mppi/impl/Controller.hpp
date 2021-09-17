@@ -32,6 +32,7 @@ void Controller<T, Model>::cleanup()
   optimizer_.on_cleanup();
   path_handler_.on_cleanup();
   trajectory_visualizer_.on_cleanup();
+  grid_map_handler_.on_cleanup();
   
   transformed_path_pub_.reset();
 }
@@ -44,6 +45,7 @@ void Controller<T, Model>::activate()
   optimizer_.on_activate();
   path_handler_.on_activate();
   trajectory_visualizer_.on_activate();
+  grid_map_handler_.on_activate();
 }
 
 template<typename T, typename Model>
@@ -53,6 +55,7 @@ void Controller<T, Model>::deactivate()
   optimizer_.on_deactivate();
   path_handler_.on_deactivate();
   trajectory_visualizer_.on_deactivate();
+  grid_map_handler_.on_deactivate();
 
 }
 
@@ -60,7 +63,7 @@ template<typename T, typename Model>
 auto Controller<T, Model>::computeVelocityCommands(
   const geometry_msgs::msg::PoseStamped & robot_pose,
   const geometry_msgs::msg::Twist & robot_speed)
-->geometry_msgs::msg::TwistStamped
+-> geometry_msgs::msg::TwistStamped
 {
   auto && transformed_plan = path_handler_.transformPath(robot_pose);
   auto && cmd = optimizer_.evalNextBestControl(
@@ -107,8 +110,10 @@ template<typename T, typename Model>
 void Controller<T, Model>::configureComponents()
 {
   auto & model = models::NaiveModel<T>;
+  grid_map_ = std::make_shared<grid_map::GridMap>();
 
-  optimizer_.on_configure(parent_, node_name_, costmap_ros_, model);
+  grid_map_handler_.on_configure(parent_, node_name_, grid_map_, tf_buffer_);
+  optimizer_.on_configure(parent_, node_name_, costmap_ros_, grid_map_, model);
   path_handler_.on_configure(parent_, node_name_, costmap_ros_, tf_buffer_);
   trajectory_visualizer_.on_configure(parent_, costmap_ros_->getGlobalFrameID());
 }
