@@ -41,7 +41,7 @@ public:
   auto computeVelocityCommands(
     const geometry_msgs::msg::PoseStamped & pose,
     const geometry_msgs::msg::Twist & velocity)
-  ->geometry_msgs::msg::TwistStamped final;
+  -> geometry_msgs::msg::TwistStamped final;
 
   void setPlan(const nav_msgs::msg::Path & path) final
   {
