@@ -11,7 +11,7 @@ if(BUILD_TESTING)
 
   add_executable(optimizer-test optimizer-test.cpp)
   ament_target_dependencies(optimizer-test ${packages})
-  target_link_libraries(optimizer-test CONAN_PKG::xtensor catch_main)
+  target_link_libraries(optimizer-test CONAN_PKG::xtensor catch_main mppic)
   target_include_directories(optimizer-test PRIVATE ../include)
   target_compile_options(optimizer-test PRIVATE -fconcepts)
   set_target_properties(optimizer-test
@@ -23,7 +23,7 @@ if(BUILD_TESTING)
 
   add_executable(geometry-test geometry-test.cpp)
   ament_target_dependencies(geometry-test ${packages})
-  target_link_libraries(geometry-test CONAN_PKG::xtensor catch_main)
+  target_link_libraries(geometry-test CONAN_PKG::xtensor catch_main mppic)
   target_include_directories(geometry-test PRIVATE ../include)
   target_compile_options(geometry-test PRIVATE -fconcepts)
   set_target_properties(geometry-test 
@@ -32,8 +32,19 @@ if(BUILD_TESTING)
           CXX_STANDARD_REQUIRED YES
   )
 
+  add_executable(grid-map-handler-test grid-map-handler-test.cpp)
+  ament_target_dependencies(grid-map-handler-test ${packages})
+  target_link_libraries(grid-map-handler-test catch_main mppic)
+  target_include_directories(grid-map-handler-test PRIVATE ../include)
+  target_compile_options(grid-map-handler-test PRIVATE -fconcepts)
+  set_target_properties(grid-map-handler-test 
+      PROPERTIES
+          CXX_STANDARD 17
+          CXX_STANDARD_REQUIRED YES
+  )
 
   catch_discover_tests(optimizer-test)
   catch_discover_tests(geometry-test)
+  catch_discover_tests(grid-map-handler-test)
 
 endif()

@@ -9,13 +9,11 @@ namespace mppi::handlers
 void GridMapHandler::on_configure(
   const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> & parent,
   const std::string & node_name,
-  const std::shared_ptr<grid_map::GridMap> & grid_map,
-  const std::shared_ptr<tf2_ros::Buffer> & buffer)
+  const std::shared_ptr<grid_map::GridMap> & grid_map)
 {
   parent_ = parent;
   node_name_ = node_name;
   grid_map_ = grid_map;
-  tf_buffer_ = buffer;
 
   getParams();
   createSubscribers();

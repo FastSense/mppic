@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
-#include "tf2_ros/buffer.h"
+
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <nav_msgs/msg/path.hpp>
@@ -24,8 +24,7 @@ public:
   void on_configure(
     const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> & parent,
     const std::string & node_name,
-    const std::shared_ptr<grid_map::GridMap> & grid_map,
-    const std::shared_ptr<tf2_ros::Buffer> & buffer);
+    const std::shared_ptr<grid_map::GridMap> & grid_map);
 
   void on_cleanup();
   void on_activate();
@@ -48,7 +47,6 @@ private:
   std::string node_name_;
   std::string input_topic_;
   std::shared_ptr<grid_map::GridMap> grid_map_;
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
   rclcpp::Logger logger_{rclcpp::get_logger("MPPI GridMapHandler")};
   std::shared_ptr<rclcpp::Subscription<grid_map_msgs::msg::GridMap>> subscriber_;

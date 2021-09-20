@@ -13,7 +13,6 @@
 
 #include "mppi/Models.hpp"
 #include "mppi/impl/Optimizer.hpp"
-#include "grid_map_core/GridMap.hpp"
 
 
 TEST_CASE("Optimizer evaluates Next Control", "") {

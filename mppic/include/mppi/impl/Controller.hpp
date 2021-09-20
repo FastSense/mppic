@@ -112,7 +112,7 @@ void Controller<T, Model>::configureComponents()
   auto & model = models::NaiveModel<T>;
   grid_map_ = std::make_shared<grid_map::GridMap>();
 
-  grid_map_handler_.on_configure(parent_, node_name_, grid_map_, tf_buffer_);
+  grid_map_handler_.on_configure(parent_, node_name_, grid_map_);
   optimizer_.on_configure(parent_, node_name_, costmap_ros_, grid_map_, model);
   path_handler_.on_configure(parent_, node_name_, costmap_ros_, tf_buffer_);
   trajectory_visualizer_.on_configure(parent_, costmap_ros_->getGlobalFrameID());
