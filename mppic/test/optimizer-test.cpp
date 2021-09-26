@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <string>
 #ifdef DO_BENCHMARKS
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
@@ -46,7 +47,7 @@ void printGridMapLayerWithTrajectoryAndGoal(grid_map::GridMap & grid_map,
   double grid_map_resolution = grid_map.getResolution();
   float origin_x = grid_map.getPosition()(0);
   float origin_y = grid_map.getPosition()(1);
-
+  printf("GridMap \n trajectory=8 goal point=100 \n");
   for (size_t i = 0; i < trajectory.shape()[0]; ++i){
     int traj_point_x = (trajectory(i, 0) - origin_x)/ grid_map_resolution;
     int traj_point_y = (trajectory(i, 1) - origin_y)/ grid_map_resolution;
@@ -270,7 +271,7 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     geometry_msgs::msg::PoseStamped reference_goal_pose;
     geometry_msgs::msg::PoseStamped init_robot_pose;         
     geometry_msgs::msg::Twist init_robot_vel; 
-    float robot_clearance = 0.2;          
+    float robot_clearance = 0.1;          
     float x_step = 0.022;
     float y_step = 0.01;
 
