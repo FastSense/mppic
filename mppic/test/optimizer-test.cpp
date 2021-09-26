@@ -20,6 +20,7 @@
 #include "grid_map_core/GridMap.hpp"
 #include "grid_map_msgs/msg/grid_map.hpp"
 #include "grid_map_ros/grid_map_ros.hpp"
+#include <cmath>
 
 /*!
 * Prints map in to cout
@@ -137,14 +138,32 @@ void addRampToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
 * Prints map, trajectory and goal in to cout.
 * @param grid_map map to be printed.
 * @param layer_name name of the map layer.
+* @param robot_clearance the maximum height between the cells of the grid map that the robot can overcome
 * @param trajectory trajectory to be printed.
 */
-bool checkTrajectoryCollision(grid_map::GridMap & grid_map, 
+bool checkTrajectoryCollision(const grid_map::GridMap & grid_map, 
                               const std::string & layer_name,
+                              const float & robot_clearance,
                               const auto & trajectory){
 
-bool result = false;
-return result;
+  auto & matrix = grid_map.get(layer_name);
+  double grid_map_resolution = grid_map.getResolution();
+  float origin_x = grid_map.getPosition()(0);
+  float origin_y = grid_map.getPosition()(1);
+  // std::cout<<robot_clearance<<std::endl;
+  int traj_point_x_prev = (trajectory(0, 0) - origin_x)/ grid_map_resolution;
+  int traj_point_y_prev = (trajectory(0, 1) - origin_y)/ grid_map_resolution;
+  for (size_t i = 1; i < trajectory.shape()[0]; ++i){
+    int traj_point_x = (trajectory(i, 0) - origin_x)/ grid_map_resolution;
+    int traj_point_y = (trajectory(i, 1) - origin_y)/ grid_map_resolution;
+    bool can_drive = abs(matrix(traj_point_x, traj_point_y) - matrix(traj_point_x_prev, traj_point_y_prev)) > robot_clearance;
+    if (can_drive){
+      return true;
+    }
+    traj_point_x_prev = traj_point_x;
+    traj_point_y_prev = traj_point_y;
+  }
+  return false;
 }
 
 TEST_CASE("Optimizer evaluates Next Control", "") {
@@ -250,7 +269,8 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     nav_msgs::msg::Path reference_path;
     geometry_msgs::msg::PoseStamped reference_goal_pose;
     geometry_msgs::msg::PoseStamped init_robot_pose;         
-    geometry_msgs::msg::Twist init_robot_vel;           
+    geometry_msgs::msg::Twist init_robot_vel; 
+    float robot_clearance = 0.2;          
     float x_step = 0.022;
     float y_step = 0.01;
 
@@ -313,10 +333,12 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     CHECK_NOTHROW(optimizer.evalNextBestControl(init_robot_pose, init_robot_vel, reference_path));
     // get best trajectory from optimizer
     auto trajectory = optimizer.evalTrajectoryFromControlSequence(init_robot_pose, init_robot_vel);
-    printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
     // check trajectory for collision
-    bool result = checkTrajectoryCollision(*grid_map, layer_name, trajectory);
-    
+    bool result = checkTrajectoryCollision(*grid_map, layer_name, robot_clearance, trajectory);
+    if (result == true){
+      printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
+    }
+    REQUIRE(result == false );
   }
 
   optimizer.on_deactivate();
