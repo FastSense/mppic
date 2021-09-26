@@ -1,7 +1,8 @@
+#include <string>
 #ifdef DO_BENCHMARKS
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
 #endif
-
+#include <iostream>
 #include <catch2/catch.hpp>
 
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
@@ -14,6 +15,137 @@
 #include "mppi/Models.hpp"
 #include "mppi/impl/Optimizer.hpp"
 
+#include "mppi/GridMapHandler.hpp"
+
+#include "grid_map_core/GridMap.hpp"
+#include "grid_map_msgs/msg/grid_map.hpp"
+#include "grid_map_ros/grid_map_ros.hpp"
+
+/*!
+* Prints map in to cout
+* @param grid_map map to be printed.
+* @param layer_name name of the map layer.
+*/
+void printGridMapLayer(grid_map::GridMap & grid_map, const std::string & layer_name){
+  std::cout<<grid_map.get(layer_name)<<std::endl;
+}
+
+/*!
+* Prints map, trajectory and goal in to cout.
+* @param grid_map map to be printed.
+* @param layer_name name of the map layer.
+* @param trajectory trajectory to be printed.
+* @param goal_point target point in world coordinates.
+*/
+void printGridMapLayerWithTrajectoryAndGoal(grid_map::GridMap & grid_map, 
+                                          const std::string & layer_name,
+                                          const auto & trajectory,
+                                          const geometry_msgs::msg::PoseStamped & goal_point){
+  auto matrix = grid_map.get(layer_name);
+  double grid_map_resolution = grid_map.getResolution();
+  float origin_x = grid_map.getPosition()(0);
+  float origin_y = grid_map.getPosition()(1);
+
+  for (size_t i = 0; i < trajectory.shape()[0]; ++i){
+    int traj_point_x = (trajectory(i, 0) - origin_x)/ grid_map_resolution;
+    int traj_point_y = (trajectory(i, 1) - origin_y)/ grid_map_resolution;
+    matrix(traj_point_x, traj_point_y) = 8.0;
+  }
+
+  float goal_ind_x = (goal_point.pose.position.x - origin_x) / grid_map_resolution;
+  float goal_ind_y = (goal_point.pose.position.y - origin_y) / grid_map_resolution;
+  matrix(goal_ind_x, goal_ind_y) = 100.0;
+  std::cout<<matrix<<std::endl;
+}
+
+/*!
+* Fills the entire layer with zero values.
+* @param grid_map grid map to be updated.
+* @param layer_name name of the map layer.
+*/
+void makeFlatGridMapLayer(grid_map::GridMap & grid_map, std::string & layer_name){
+  for (grid_map::GridMapIterator it(grid_map); !it.isPastEnd(); ++it) {
+    grid_map.at(layer_name, *it) = 0.0;
+  }
+}
+
+
+/*!
+* Adds a hill to the grid map
+* @param grid_map grid map to be updated.
+* @param layer_name name of the map layer.
+* @param hill_height hill height in meters.
+* @param hill_step step of changing the height between cells in meters.
+* @param hill_size_m size (length) of the hill in meters.
+* @param cx the x coordinate of the upper left corner of the hill.
+* @param cy the y coordinate of the upper left corner of the hill.
+*/
+void addHillToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
+                          const float & hill_height,
+                          const float & hill_step, const float & hill_size_m,
+                          const int & cx, const int & cy){
+  
+  double grid_map_resolution = grid_map.getResolution();                    
+  float hill_size_cells = hill_size_m / grid_map_resolution;
+  auto & layer_matrix = grid_map.get(layer_name);
+  float h = hill_step;
+  float size_x = hill_size_cells;
+  float size_y = hill_size_cells;
+  int cx_ = cx;
+  for (size_t j = cy; j <= cy+hill_size_cells/2; j++){
+    layer_matrix.block(cx_, j, size_x, size_y).setConstant(h);
+    cx_ = cx_ + 1;
+    size_x = size_x - 2;
+    size_y = size_y - 2;
+    if (h + hill_step <= hill_height){
+      h = h + hill_step;
+    }
+  }
+}
+
+/*!
+* Adds a ramp to the grid map
+* @param grid_map grid map to be updated.
+* @param layer_name name of the map layer.
+* @param ramp_height ramp height in meters.
+* @param ramp_step step of changing the height between cells in meters.
+* @param ramp_size size (length) of the ramp in meters.
+* @param cx the x coordinate of the upper left corner of the ramp.
+* @param cy the y coordinate of the upper left corner of the ramp.
+*/
+void addRampToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
+                         const float & ramp_height,
+                         const float & ramp_step, const float & ramp_size,
+                         const int & cx, const int & cy){
+
+  double grid_map_resolution = grid_map.getResolution();
+  float size = ramp_size / grid_map_resolution;
+  auto & layer_matrix = grid_map.get(layer_name);
+  float h = ramp_step;
+
+  for (size_t j = cy; j < cy + size; j++){
+    for (size_t i = cx; i < cx + size; i++){
+      layer_matrix.row(j)(i) = h;
+    }
+    if (h + ramp_step <= ramp_height){
+      h = h + ramp_step;
+    }
+  }
+}
+
+/*!
+* Prints map, trajectory and goal in to cout.
+* @param grid_map map to be printed.
+* @param layer_name name of the map layer.
+* @param trajectory trajectory to be printed.
+*/
+bool checkTrajectoryCollision(grid_map::GridMap & grid_map, 
+                              const std::string & layer_name,
+                              const auto & trajectory){
+
+bool result = false;
+return result;
+}
 
 TEST_CASE("Optimizer evaluates Next Control", "") {
   using T = float;
@@ -74,4 +206,122 @@ TEST_CASE("Optimizer evaluates Next Control", "") {
   optimizer.on_cleanup();
   costmap_ros->on_cleanup(st);
   costmap_ros.reset();
+}
+
+TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]") {
+  using T = float;
+  std::string node_name = "TestNode";
+  std::string costmap_node_name = "cost_map_node";
+
+  auto & model = mppi::models::NaiveModel<T>;
+  auto optimizer = mppi::optimization::Optimizer<T>();
+  auto state = rclcpp_lifecycle::State{};
+  auto grid_map = std::make_shared<grid_map::GridMap>();
+
+  // params for gridmap
+  std::string layer_name = "elevation";
+  std::string frame = "odom";
+  float grid_map_lenght_x = 3.0;
+  float grid_map_lenght_y = 3.0;
+  float grid_map_resolution = 0.1;
+  float grid_map_pose_x = 0.0;
+  float grid_map_pose_y = 0.0;
+  
+  grid_map->add(layer_name);
+  grid_map->setFrameId(frame);
+  grid_map->setGeometry(
+    grid_map::Length(grid_map_lenght_x, grid_map_lenght_y),
+    grid_map_resolution,
+    grid_map::Position(grid_map_pose_x, grid_map_pose_y)
+  );  
+  
+  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(costmap_node_name);
+  costmap_ros->on_configure(state);
+
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>(node_name);
+  optimizer.on_configure(node, node_name, costmap_ros, grid_map, model);
+  optimizer.on_activate();
+
+  size_t reference_path_lenght = 100; 
+
+  SECTION("Optimizer produces a trajectory that does not cross obstacles on the gridmap") {
+
+    auto time = node->get_clock()->now();  // time for header in path
+    nav_msgs::msg::Path reference_path;
+    geometry_msgs::msg::PoseStamped reference_goal_pose;
+    geometry_msgs::msg::PoseStamped init_robot_pose;         
+    geometry_msgs::msg::Twist init_robot_vel;           
+    float x_step = 0.022;
+    float y_step = 0.01;
+
+    // params for hill on the grid map
+    float max_hill_height = 0.3;
+    float hill_step = 0.03;
+    float hill_size = 0.6;
+    int hill_left_upper_corner_cells_x = 3;
+    int hill_left_upper_corner_cells_y = 12;
+
+    // params for ramp on the gridmap
+    float ramp_height = 0.6;
+    float ramp_step = 0.15;
+    float ramp_size = 0.9;
+    float ramp_left_upper_corner_cells_x = 0;
+    float ramp_left_upper_corner_cells_y = 1;
+
+    // lambda expression for setting header
+    auto setHeader = [&](auto &&msg) {
+      msg.header.frame_id = frame;
+      msg.header.stamp = time;
+    };
+
+    // lambda expression for refernce path generation
+    auto fillRealPath = [&](size_t count) {
+      for (size_t i = 0; i < count; i++) {
+          reference_goal_pose.pose.position.x = i*x_step;
+          reference_goal_pose.pose.position.y = i*y_step;
+          reference_path.poses.push_back(reference_goal_pose);
+      }
+    };  
+
+    setHeader(reference_goal_pose);
+    setHeader(init_robot_pose);
+    setHeader(reference_path);
+    fillRealPath(reference_path_lenght);
+
+    makeFlatGridMapLayer(*grid_map, layer_name);
+    addHillToGridMapLayer(
+      *grid_map, 
+      layer_name, 
+      max_hill_height, 
+      hill_step, 
+      hill_size,
+      hill_left_upper_corner_cells_x, 
+      hill_left_upper_corner_cells_y
+    );
+
+    addRampToGridMapLayer(
+      *grid_map,
+      layer_name,
+      ramp_height,
+      ramp_step,
+      ramp_size,
+      ramp_left_upper_corner_cells_x, 
+      ramp_left_upper_corner_cells_y
+    );
+
+    // update controal sequence in optimizer
+    CHECK_NOTHROW(optimizer.evalNextBestControl(init_robot_pose, init_robot_vel, reference_path));
+    // get best trajectory from optimizer
+    auto trajectory = optimizer.evalTrajectoryFromControlSequence(init_robot_pose, init_robot_vel);
+    printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
+    // check trajectory for collision
+    bool result = checkTrajectoryCollision(*grid_map, layer_name, trajectory);
+    
+  }
+
+  optimizer.on_deactivate();
+  optimizer.on_cleanup();
+  costmap_ros->on_cleanup(state);
+  costmap_ros.reset();
+
 }
