@@ -18,6 +18,19 @@
 #include "grid_map_ros/grid_map_ros.hpp"
 #include <iostream>
 
+
+/**
+ * Adds some parameters for the optimizer to a special container.
+ *
+ * @param params_ container for optimizer's parameters.
+*/
+void setUpOptimizerParams(std::vector<rclcpp::Parameter> &params_){
+  params_.push_back(rclcpp::Parameter("TestNode.iteration_count", 5));
+  params_.push_back(rclcpp::Parameter("TestNode.lookahead_dist", 5));
+  params_.push_back(rclcpp::Parameter("TestNode.time_steps", 30));
+}
+
+
 /*!
 * Prints map in to cout
 * @param grid_map map to be printed.
@@ -233,6 +246,11 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
   std::string node_name = "TestNode";
   std::string costmap_node_name = "cost_map_node";
 
+  std::vector<rclcpp::Parameter> params_;
+  rclcpp::NodeOptions options;
+  setUpOptimizerParams(params_);
+  options.parameter_overrides(params_);
+
   auto & model = mppi::models::NaiveModel<T>;
   auto optimizer = mppi::optimization::Optimizer<T>();
   auto state = rclcpp_lifecycle::State{};
@@ -258,7 +276,7 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(costmap_node_name);
   costmap_ros->on_configure(state);
 
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>(node_name);
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>(node_name, options);
   optimizer.on_configure(node, node_name, costmap_ros, grid_map, model);
   optimizer.on_activate();
 
@@ -344,10 +362,12 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     auto trajectory = optimizer.evalTrajectoryFromControlSequence(init_robot_pose, init_robot_vel);
     // check trajectory for collision
     bool result = checkTrajectoryCollision(*grid_map, layer_name, robot_clearance, trajectory);
-    if (result == true){
-      printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
-    }
+    // if (result == true){
+    //   printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
+    // }
     REQUIRE(result == false);
+    printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
+
   }
 
   optimizer.on_deactivate();
