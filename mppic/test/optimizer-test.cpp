@@ -1,4 +1,3 @@
-#include <cstdio>
 #include <string>
 #include <cmath>
 #ifdef DO_BENCHMARKS
@@ -55,7 +54,7 @@ void printGridMapLayerWithTrajectoryAndGoal(grid_map::GridMap & grid_map,
   double grid_map_resolution = grid_map.getResolution();
   float origin_x = grid_map.getPosition()(0);
   float origin_y = grid_map.getPosition()(1);
-  printf("GridMap \n start point=-100 trajectory=-1 goal point=100 \n");
+  std::cout<<"GridMap \n start point=-100 trajectory=-1 goal point=100 \n"<<std::endl;
   int start_point_x = (trajectory(0, 0) - origin_x)/ grid_map_resolution;
   int start_point_y = (trajectory(0, 1) - origin_y)/ grid_map_resolution;
   matrix(start_point_x, start_point_y) = -100.0;
@@ -73,17 +72,6 @@ void printGridMapLayerWithTrajectoryAndGoal(grid_map::GridMap & grid_map,
   std::cout<<matrix<<std::endl;
 }
 
-/*!
-* Fills the entire layer with zero values.
-* @param grid_map grid map to be updated.
-* @param layer_name name of the map layer.
-*/
-void makeFlatGridMapLayer(grid_map::GridMap & grid_map, std::string & layer_name){
-  for (grid_map::GridMapIterator it(grid_map); !it.isPastEnd(); ++it) {
-    grid_map.at(layer_name, *it) = 0.0;
-  }
-}
-
 
 /*!
 * Adds a hill to the grid map
@@ -92,26 +80,23 @@ void makeFlatGridMapLayer(grid_map::GridMap & grid_map, std::string & layer_name
 * @param hill_height hill height in meters.
 * @param hill_step step of changing the height between cells in meters.
 * @param hill_size_m size (length) of the hill in meters.
-* @param cx the x coordinate of the upper left corner of the hill.
-* @param cy the y coordinate of the upper left corner of the hill.
+* @param upper_left_corner_x the x coordinate of the upper left corner of the hill.
+* @param upper_left_corner_y the y coordinate of the upper left corner of the hill.
 */
 void addHillToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
-                          const float & hill_height,
-                          const float & hill_step, const float & hill_size_m,
-                          const int & cx, const int & cy){
+                          float hill_height,
+                          float hill_step, float hill_size_m,
+                          int upper_left_corner_x, int upper_left_corner_y){
   
   double grid_map_resolution = grid_map.getResolution();                    
   float hill_size_cells = hill_size_m / grid_map_resolution;
   auto & layer_matrix = grid_map.get(layer_name);
   float h = hill_step;
-  float size_x = hill_size_cells;
-  float size_y = hill_size_cells;
-  int cx_ = cx;
-  for (size_t j = cy; j <= cy+hill_size_cells/2; j++){
-    layer_matrix.block(cx_, j, size_x, size_y).setConstant(h);
-    cx_ = cx_ + 1;
-    size_x = size_x - 2;
-    size_y = size_y - 2;
+  size_t y_limit = upper_left_corner_y+hill_size_cells/2;
+  for (size_t j = upper_left_corner_y; j <= y_limit; j++){
+    layer_matrix.block(upper_left_corner_x, j, hill_size_cells, hill_size_cells).setConstant(h);
+    upper_left_corner_x = upper_left_corner_x + 1;
+    hill_size_cells = hill_size_cells - 2;
     if (h + hill_step <= hill_height){
       h = h + hill_step;
     }
@@ -129,33 +114,33 @@ void addHillToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
 * @param cy the y coordinate of the upper left corner of the ramp.
 */
 void addRampToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
-                         const float & ramp_height,
-                         const float & ramp_step, const float & ramp_size,
-                         const int & cx, const int & cy){
+                         float ramp_height,
+                         float ramp_step, float ramp_size,
+                         int  upper_left_corner_x, int upper_left_corner_y){
 
   double grid_map_resolution = grid_map.getResolution();
-  float size = ramp_size / grid_map_resolution;
+  float ramp_size_cells = ramp_size / grid_map_resolution;
   auto & layer_matrix = grid_map.get(layer_name);
-  float h = ramp_step;
+  float curr_h = ramp_step;
 
-  for (size_t j = cy; j < cy + size; j++){
-    for (size_t i = cx; i < cx + size; i++){
-      layer_matrix.row(j)(i) = h;
+  for (size_t j = upper_left_corner_y; j < upper_left_corner_y + ramp_size_cells; j++){
+    for (size_t i = upper_left_corner_x; i < upper_left_corner_x + ramp_size_cells; i++){
+      layer_matrix.row(j)(i) = curr_h;
     }
-    if (h + ramp_step <= ramp_height){
-      h = h + ramp_step;
+    if (curr_h + ramp_step <= ramp_height){
+      curr_h = curr_h + ramp_step;
     }
   }
 }
 
 /*!
-* Prints map, trajectory and goal in to cout.
+* Сhecks the trajectory for intersections with obstacles
 * @param grid_map map to be printed.
 * @param layer_name name of the map layer.
 * @param robot_clearance the maximum height between the cells of the grid map that the robot can overcome
 * @param trajectory trajectory to be printed.
 */
-bool checkTrajectoryCollision(const grid_map::GridMap & grid_map, 
+bool InCollison(const grid_map::GridMap & grid_map, 
                               const std::string & layer_name,
                               const float & robot_clearance,
                               const auto & trajectory){
@@ -170,8 +155,8 @@ bool checkTrajectoryCollision(const grid_map::GridMap & grid_map,
   for (size_t i = 1; i < trajectory.shape()[0]; ++i){
     int traj_point_x = (trajectory(i, 0) - origin_x)/ grid_map_resolution;
     int traj_point_y = (trajectory(i, 1) - origin_y)/ grid_map_resolution;
-    bool can_drive = abs(matrix(traj_point_x, traj_point_y) - matrix(traj_point_x_prev, traj_point_y_prev)) > robot_clearance;
-    if (can_drive){
+    bool cant_drive = abs(matrix(traj_point_x, traj_point_y) - matrix(traj_point_x_prev, traj_point_y_prev)) > robot_clearance;
+    if (cant_drive){
       return true;
     }
     traj_point_x_prev = traj_point_x;
@@ -281,15 +266,12 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
   optimizer.on_activate();
 
   size_t reference_path_lenght = GENERATE(50);  
-  // int obstacle_step_k = GENERATE(1); 
   float start_point_x = GENERATE(1.25, 0.7);
   float start_point_y = GENERATE(1.5, 0.5);
 
   SECTION("Optimizer produces a trajectory that does not cross obstacles on the gridmap") {
 
     auto time = node->get_clock()->now();
-    // float start_point_x = 1.25;
-    // float start_point_y = 1.25;
     nav_msgs::msg::Path reference_path;
     geometry_msgs::msg::PoseStamped reference_goal_pose;
     geometry_msgs::msg::PoseStamped init_robot_pose;         
@@ -325,7 +307,6 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
       for (size_t i = 0; i < count; i++) {
           reference_goal_pose.pose.position.x = i*x_step + start_point_x;
           reference_goal_pose.pose.position.y = i*y_step + start_point_y;
-          // std::cout<<reference_goal_pose.pose.position.x<< " "<<reference_goal_pose.pose.position.y<<std::endl;
           reference_path.poses.push_back(reference_goal_pose);
       }
     };  
@@ -335,7 +316,7 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     setHeader(reference_path);
     fillRealPath(reference_path_lenght);
 
-    makeFlatGridMapLayer(*grid_map, layer_name);
+    grid_map->get(layer_name).setZero();
     addHillToGridMapLayer(
       *grid_map, 
       layer_name, 
@@ -360,12 +341,11 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     CHECK_NOTHROW(optimizer.evalNextBestControl(init_robot_pose, init_robot_vel, reference_path));
     // get best trajectory from optimizer
     auto trajectory = optimizer.evalTrajectoryFromControlSequence(init_robot_pose, init_robot_vel);
-    // check trajectory for collision
-    bool result = checkTrajectoryCollision(*grid_map, layer_name, robot_clearance, trajectory);
-    if (result == true){
-      printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
-    }
-    REQUIRE(result == false);
+
+#ifdef TEST_DEBUG_INFO
+    printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
+#endif      
+    CHECK(!InCollison(*grid_map, layer_name, robot_clearance, trajectory));
   }
 
   optimizer.on_deactivate();
