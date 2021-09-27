@@ -1,9 +1,9 @@
 #include <cstdio>
 #include <string>
+#include <cmath>
 #ifdef DO_BENCHMARKS
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
 #endif
-#include <iostream>
 #include <catch2/catch.hpp>
 
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
@@ -15,13 +15,8 @@
 
 #include "mppi/Models.hpp"
 #include "mppi/impl/Optimizer.hpp"
-
-#include "mppi/GridMapHandler.hpp"
-
-#include "grid_map_core/GridMap.hpp"
-#include "grid_map_msgs/msg/grid_map.hpp"
 #include "grid_map_ros/grid_map_ros.hpp"
-#include <cmath>
+
 
 /*!
 * Prints map in to cout
@@ -266,7 +261,7 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
 
   SECTION("Optimizer produces a trajectory that does not cross obstacles on the gridmap") {
 
-    auto time = node->get_clock()->now();  // time for header in path
+    auto time = node->get_clock()->now();
     nav_msgs::msg::Path reference_path;
     geometry_msgs::msg::PoseStamped reference_goal_pose;
     geometry_msgs::msg::PoseStamped init_robot_pose;         
@@ -339,12 +334,11 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     if (result == true){
       printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
     }
-    REQUIRE(result == false );
+    REQUIRE(result == false);
   }
 
   optimizer.on_deactivate();
   optimizer.on_cleanup();
   costmap_ros->on_cleanup(state);
   costmap_ros.reset();
-
 }
