@@ -9,6 +9,10 @@ if(BUILD_TESTING)
     target_compile_definitions(catch_main PUBLIC -DDO_BENCHMARKS)
   endif()
 
+  if (${TEST_DEBUG_INFO})
+    target_compile_definitions(catch_main PUBLIC -DTEST_DEBUG_INFO)
+  endif()
+
   add_executable(optimizer-test optimizer-test.cpp)
   ament_target_dependencies(optimizer-test ${packages})
   target_link_libraries(optimizer-test CONAN_PKG::xtensor catch_main mppic)
