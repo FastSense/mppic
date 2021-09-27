@@ -42,11 +42,16 @@ void printGridMapLayerWithTrajectoryAndGoal(grid_map::GridMap & grid_map,
   double grid_map_resolution = grid_map.getResolution();
   float origin_x = grid_map.getPosition()(0);
   float origin_y = grid_map.getPosition()(1);
-  printf("GridMap \n trajectory=8 goal point=100 \n");
-  for (size_t i = 0; i < trajectory.shape()[0]; ++i){
+  printf("GridMap \n start point=-100 trajectory=-1 goal point=100 \n");
+  int start_point_x = (trajectory(0, 0) - origin_x)/ grid_map_resolution;
+  int start_point_y = (trajectory(0, 1) - origin_y)/ grid_map_resolution;
+  matrix(start_point_x, start_point_y) = -100.0;
+  for (size_t i = 1; i < trajectory.shape()[0]; ++i){
     int traj_point_x = (trajectory(i, 0) - origin_x)/ grid_map_resolution;
     int traj_point_y = (trajectory(i, 1) - origin_y)/ grid_map_resolution;
-    matrix(traj_point_x, traj_point_y) = 8.0;
+    if (traj_point_x!=start_point_x || traj_point_y!=start_point_y){
+      matrix(traj_point_x, traj_point_y) = -1.0;
+    }
   }
 
   float goal_ind_x = (goal_point.pose.position.x - origin_x) / grid_map_resolution;
@@ -236,8 +241,8 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
   // params for gridmap
   std::string layer_name = "elevation";
   std::string frame = "odom";
-  float grid_map_lenght_x = 1.5;
-  float grid_map_lenght_y = 1.5;
+  float grid_map_lenght_x = 2;
+  float grid_map_lenght_y = 2;
   float grid_map_resolution = 0.05;
   float grid_map_pose_x = 0.0;
   float grid_map_pose_y = 0.0;
@@ -257,35 +262,38 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
   optimizer.on_configure(node, node_name, costmap_ros, grid_map, model);
   optimizer.on_activate();
 
-  size_t reference_path_lenght = GENERATE(75, 100);  
-  
+  size_t reference_path_lenght = GENERATE(50);  
+  // int obstacle_step_k = GENERATE(1); 
+  float start_point_x = GENERATE(1.25, 0.7);
+  float start_point_y = GENERATE(1.5, 0.5);
+
   SECTION("Optimizer produces a trajectory that does not cross obstacles on the gridmap") {
 
     auto time = node->get_clock()->now();
-    float start_point_x = 0.05;
-    float start_point_y = 0.5;
+    // float start_point_x = 1.25;
+    // float start_point_y = 1.25;
     nav_msgs::msg::Path reference_path;
     geometry_msgs::msg::PoseStamped reference_goal_pose;
     geometry_msgs::msg::PoseStamped init_robot_pose;         
     geometry_msgs::msg::Twist init_robot_vel; 
     float robot_clearance = 0.1;          
-    float x_step = 0.015;
-    float y_step = 0.008;
+    float x_step = -0.012;
+    float y_step = -0.002;
     init_robot_pose.pose.position.x = start_point_x;
     init_robot_pose.pose.position.y = start_point_y;
 
     // params for ramp on the gridmap
     float ramp_height = 0.6;
     float ramp_step = 0.15;
-    float ramp_size = 0.6;
-    float ramp_left_upper_corner_cells_x = 2;
+    float ramp_size = 0.4;
+    float ramp_left_upper_corner_cells_x = 8;
     float ramp_left_upper_corner_cells_y = 3;
 
     // params for hill on the grid map
     float max_hill_height = 0.36;
     float hill_step = 0.03;
-    float hill_size = 0.5;
-    int hill_left_upper_corner_cells_x = 0;
+    float hill_size = 0.8;
+    int hill_left_upper_corner_cells_x = 6;
     int hill_left_upper_corner_cells_y = 16;
 
     // lambda expression for setting header
