@@ -16,7 +16,7 @@
 #include "mppi/Models.hpp"
 #include "mppi/impl/Optimizer.hpp"
 #include "grid_map_ros/grid_map_ros.hpp"
-
+#include <iostream>
 
 /*!
 * Prints map in to cout
@@ -236,9 +236,9 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
   // params for gridmap
   std::string layer_name = "elevation";
   std::string frame = "odom";
-  float grid_map_lenght_x = 3.0;
-  float grid_map_lenght_y = 3.0;
-  float grid_map_resolution = 0.1;
+  float grid_map_lenght_x = 1.5;
+  float grid_map_lenght_y = 1.5;
+  float grid_map_resolution = 0.05;
   float grid_map_pose_x = 0.0;
   float grid_map_pose_y = 0.0;
   
@@ -257,32 +257,36 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
   optimizer.on_configure(node, node_name, costmap_ros, grid_map, model);
   optimizer.on_activate();
 
-  size_t reference_path_lenght = 100; 
-
+  size_t reference_path_lenght = GENERATE(75, 100);  
+  
   SECTION("Optimizer produces a trajectory that does not cross obstacles on the gridmap") {
 
     auto time = node->get_clock()->now();
+    float start_point_x = 0.05;
+    float start_point_y = 0.5;
     nav_msgs::msg::Path reference_path;
     geometry_msgs::msg::PoseStamped reference_goal_pose;
     geometry_msgs::msg::PoseStamped init_robot_pose;         
     geometry_msgs::msg::Twist init_robot_vel; 
     float robot_clearance = 0.1;          
-    float x_step = 0.022;
-    float y_step = 0.01;
-
-    // params for hill on the grid map
-    float max_hill_height = 0.3;
-    float hill_step = 0.03;
-    float hill_size = 0.6;
-    int hill_left_upper_corner_cells_x = 3;
-    int hill_left_upper_corner_cells_y = 12;
+    float x_step = 0.015;
+    float y_step = 0.008;
+    init_robot_pose.pose.position.x = start_point_x;
+    init_robot_pose.pose.position.y = start_point_y;
 
     // params for ramp on the gridmap
     float ramp_height = 0.6;
     float ramp_step = 0.15;
-    float ramp_size = 0.9;
-    float ramp_left_upper_corner_cells_x = 0;
-    float ramp_left_upper_corner_cells_y = 1;
+    float ramp_size = 0.6;
+    float ramp_left_upper_corner_cells_x = 2;
+    float ramp_left_upper_corner_cells_y = 3;
+
+    // params for hill on the grid map
+    float max_hill_height = 0.36;
+    float hill_step = 0.03;
+    float hill_size = 0.5;
+    int hill_left_upper_corner_cells_x = 0;
+    int hill_left_upper_corner_cells_y = 16;
 
     // lambda expression for setting header
     auto setHeader = [&](auto &&msg) {
@@ -293,8 +297,9 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     // lambda expression for refernce path generation
     auto fillRealPath = [&](size_t count) {
       for (size_t i = 0; i < count; i++) {
-          reference_goal_pose.pose.position.x = i*x_step;
-          reference_goal_pose.pose.position.y = i*y_step;
+          reference_goal_pose.pose.position.x = i*x_step + start_point_x;
+          reference_goal_pose.pose.position.y = i*y_step + start_point_y;
+          // std::cout<<reference_goal_pose.pose.position.x<< " "<<reference_goal_pose.pose.position.y<<std::endl;
           reference_path.poses.push_back(reference_goal_pose);
       }
     };  
