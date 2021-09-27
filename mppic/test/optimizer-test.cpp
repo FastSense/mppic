@@ -362,12 +362,10 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     auto trajectory = optimizer.evalTrajectoryFromControlSequence(init_robot_pose, init_robot_vel);
     // check trajectory for collision
     bool result = checkTrajectoryCollision(*grid_map, layer_name, robot_clearance, trajectory);
-    // if (result == true){
-    //   printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
-    // }
+    if (result == true){
+      printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
+    }
     REQUIRE(result == false);
-    printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
-
   }
 
   optimizer.on_deactivate();
