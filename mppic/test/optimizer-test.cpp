@@ -1,3 +1,4 @@
+#include "grid_map_core/TypeDefs.hpp"
 #include <string>
 #include <cmath>
 #ifdef DO_BENCHMARKS
@@ -80,22 +81,20 @@ void printGridMapLayerWithTrajectoryAndGoal(grid_map::GridMap & grid_map,
 * @param hill_height hill height in meters.
 * @param hill_step step of changing the height between cells in meters.
 * @param hill_size_m size (length) of the hill in meters.
-* @param upper_left_corner_x the x coordinate of the upper left corner of the hill.
-* @param upper_left_corner_y the y coordinate of the upper left corner of the hill.
+* @param upper_left_corner the x and y coordinate of the upper left corner of the hill.
 */
 void addHillToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
-                          float hill_height,
-                          float hill_step, float hill_size_m,
-                          int upper_left_corner_x, int upper_left_corner_y){
+                          float hill_height, float hill_step, float hill_size_m,
+                          grid_map::Index upper_left_corner){
   
   double grid_map_resolution = grid_map.getResolution();                    
   float hill_size_cells = hill_size_m / grid_map_resolution;
   auto & layer_matrix = grid_map.get(layer_name);
   float h = hill_step;
-  size_t y_limit = upper_left_corner_y+hill_size_cells/2;
-  for (size_t j = upper_left_corner_y; j <= y_limit; j++){
-    layer_matrix.block(upper_left_corner_x, j, hill_size_cells, hill_size_cells).setConstant(h);
-    upper_left_corner_x = upper_left_corner_x + 1;
+  size_t y_limit = upper_left_corner(1)+hill_size_cells/2;
+  for (size_t j = upper_left_corner(1); j <= y_limit; j++){
+    layer_matrix.block(upper_left_corner(0), j, hill_size_cells, hill_size_cells).setConstant(h);
+    upper_left_corner(0) = upper_left_corner(0) + 1;
     hill_size_cells = hill_size_cells - 2;
     if (h + hill_step <= hill_height){
       h = h + hill_step;
@@ -110,21 +109,19 @@ void addHillToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
 * @param ramp_height ramp height in meters.
 * @param ramp_step step of changing the height between cells in meters.
 * @param ramp_size size (length) of the ramp in meters.
-* @param cx the x coordinate of the upper left corner of the ramp.
-* @param cy the y coordinate of the upper left corner of the ramp.
+* @param upper_left_corner the x and y coordinate of the upper left corner of the ramp.
 */
 void addRampToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
-                         float ramp_height,
-                         float ramp_step, float ramp_size,
-                         int  upper_left_corner_x, int upper_left_corner_y){
+                         float ramp_height, float ramp_step, float ramp_size,
+                         grid_map::Index upper_left_corner){
 
   double grid_map_resolution = grid_map.getResolution();
   float ramp_size_cells = ramp_size / grid_map_resolution;
   auto & layer_matrix = grid_map.get(layer_name);
   float curr_h = ramp_step;
 
-  for (size_t j = upper_left_corner_y; j < upper_left_corner_y + ramp_size_cells; j++){
-    for (size_t i = upper_left_corner_x; i < upper_left_corner_x + ramp_size_cells; i++){
+  for (size_t j = upper_left_corner(1); j < upper_left_corner(1) + ramp_size_cells; j++){
+    for (size_t i = upper_left_corner(0); i < upper_left_corner(0) + ramp_size_cells; i++){
       layer_matrix.row(j)(i) = curr_h;
     }
     if (curr_h + ramp_step <= ramp_height){
@@ -141,15 +138,15 @@ void addRampToGridMapLayer(grid_map::GridMap & grid_map, std::string layer_name,
 * @param trajectory trajectory to be printed.
 */
 bool InCollison(const grid_map::GridMap & grid_map, 
-                              const std::string & layer_name,
-                              const float & robot_clearance,
+                              std::string & layer_name,
+                              float robot_clearance,
                               const auto & trajectory){
 
   auto & matrix = grid_map.get(layer_name);
   double grid_map_resolution = grid_map.getResolution();
   float origin_x = grid_map.getPosition()(0);
   float origin_y = grid_map.getPosition()(1);
-  // std::cout<<robot_clearance<<std::endl;
+
   int traj_point_x_prev = (trajectory(0, 0) - origin_x)/ grid_map_resolution;
   int traj_point_y_prev = (trajectory(0, 1) - origin_y)/ grid_map_resolution;
   for (size_t i = 1; i < trajectory.shape()[0]; ++i){
@@ -286,15 +283,13 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     float ramp_height = 0.6;
     float ramp_step = 0.15;
     float ramp_size = 0.4;
-    float ramp_left_upper_corner_cells_x = 8;
-    float ramp_left_upper_corner_cells_y = 3;
+    grid_map::Index ramp_left_upper_corner_cells(8, 3);
 
     // params for hill on the grid map
     float max_hill_height = 0.36;
     float hill_step = 0.03;
     float hill_size = 0.8;
-    int hill_left_upper_corner_cells_x = 6;
-    int hill_left_upper_corner_cells_y = 16;
+    grid_map::Index hill_left_upper_corner_cells(6, 16);
 
     // lambda expression for setting header
     auto setHeader = [&](auto &&msg) {
@@ -323,8 +318,7 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
       max_hill_height, 
       hill_step, 
       hill_size,
-      hill_left_upper_corner_cells_x, 
-      hill_left_upper_corner_cells_y
+      hill_left_upper_corner_cells
     );
 
     addRampToGridMapLayer(
@@ -333,8 +327,7 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
       ramp_height,
       ramp_step,
       ramp_size,
-      ramp_left_upper_corner_cells_x, 
-      ramp_left_upper_corner_cells_y
+      ramp_left_upper_corner_cells
     );
 
     // update controal sequence in optimizer
