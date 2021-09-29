@@ -119,3 +119,17 @@ controller_server:
 |---------------------------|----------------------------------|-----------------------------------------------------------------------|
 | `trajectories`            | `visualization_msgs/MarkerArray` | Randomly generated trajectories, including resulting control sequence |
 | `transformed_global_plan` | `nav_msgs/Path`                  | Part of global plan considered by local planner                       |
+
+## Run tests
+Build with required flags
+
+```bash
+colcon build --packages-select mppic --cmake-args -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DTEST_DEBUG_INFO=ON
+```
+* DTEST_DEBUG_INFO - additional console output
+
+Run tests
+
+```bash
+colcon test --packages-select mppic --ctest-args -VV --event-handlers console_direct+
+```
