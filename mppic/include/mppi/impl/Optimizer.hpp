@@ -279,7 +279,65 @@ auto Optimizer<T, Model>::evalBatchesCosts(
   evalGoalCost(batches_of_trajectories, path_tensor, costs);
   evalGoalAngleCost(batches_of_trajectories, path_tensor, robot_pose, costs);
   evalObstacleCost(batches_of_trajectories, costs);
+  evalSlopeRoughnessCost(batches_of_trajectories, costs);
   return costs;
+}
+
+template<typename T, typename Model>
+void Optimizer<T, Model>::evalSlopeRoughnessCost(
+  const auto & batches_of_trajectories_points,
+  auto & costs) const
+{
+
+  // auto & matrix = grid_map_->get("elevation");
+  // double grid_map_resolution = grid_map_->getResolution();
+  // float origin_x = grid_map_->getPosition()(0);
+  // float origin_y = grid_map_->getPosition()(1);
+
+
+  for (size_t i = 0; i < static_cast<size_t>(batch_size_); ++i) {
+    RCLCPP_INFO(this->logger_, "Publishing: Batch %d", i);
+    for (size_t j = 0; j < static_cast<size_t>(time_steps_); ++j) {
+        evalFootprintPoints(batches_of_trajectories_points(i, j, 0),  batches_of_trajectories_points(i, j, 1));
+      }
+    }
+  
+  costs += xt::zeros_like(costs);
+}
+
+template<typename T, typename Model>
+auto Optimizer<T, Model>::evalFootprintPoints(const double & x, const double & y) const
+-> xt::xtensor<T, 3>
+{
+  double grid_map_resolution = grid_map_->getResolution();
+  float origin_x = grid_map_->getPosition()(0);
+  float origin_y = grid_map_->getPosition()(1);
+  // auto & matrix = grid_map_->get("elevation");
+
+
+  int grid_pos_i = x / grid_map_resolution;
+  int grid_pos_j = y / grid_map_resolution;
+  
+  grid_map::Index ij;
+  grid_map::Position gr_pos(x, y);
+  // grid_map::Index ij;
+  // grid_map::Pos
+  grid_map_->getIndex(gr_pos, ij);
+
+
+  grid_map::Index ij2(grid_pos_i, grid_pos_j);
+  grid_map::Position gr_pos2(x, y);
+  // grid_map::Index ij;
+  // grid_map::Pos
+  grid_map_->getPosition(ij2, gr_pos2);
+
+  RCLCPP_INFO(this->logger_, "Publishing: or x -- %f, or y -- %f", origin_x , origin_y);
+  RCLCPP_INFO(this->logger_, "Publishing: x -- %f, y -- %f", x , y);
+  RCLCPP_INFO(this->logger_, "Publishing: i0 -- %d, j0 -- %d", grid_pos_i , grid_pos_j);
+  RCLCPP_INFO(this->logger_, "Publishing: i1 -- %d, j1 -- %d", ij[0] , ij[1]);
+  RCLCPP_INFO(this->logger_, "Publishing: x1 -- %f, y1 -- %f", gr_pos2[0] , gr_pos2[1]);
+
+  return xt::zeros<float>({3, 3});
 }
 
 

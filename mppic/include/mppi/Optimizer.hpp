@@ -11,9 +11,11 @@
 #include "nav_msgs/msg/path.hpp"
 
 #include <grid_map_core/GridMap.hpp>
+#include<grid_map_core/TypeDefs.hpp>
 
 #include "xtensor/xarray.hpp"
 #include <xtensor/xview.hpp>
+
 
 namespace mppi::optimization
 {
@@ -163,6 +165,18 @@ private:
    * @param costs [out] add obstacle cost values to this tensor
    */
   void evalObstacleCost(const auto & batch_of_trajectories, auto & costs) const;
+
+  /**
+   * @brief TODO
+   * 
+   * @param batches_of_trajectories_points 
+   * @param costs 
+   */
+  void evalSlopeRoughnessCost(const auto & batches_of_trajectories_points, auto & costs) const;
+
+  auto evalFootprintPoints(const double & x, const double & y) const
+    ->xt::xtensor<T, 3>;
+
 
   /**
    * @brief Evaluate cost related to robot orientation at goal pose (considered only if robot near last goal in current plan)
