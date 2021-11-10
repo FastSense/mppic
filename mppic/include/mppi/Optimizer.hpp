@@ -17,6 +17,9 @@
 #include <xtensor/xview.hpp>
 
 
+
+
+
 namespace mppi::optimization
 {
 
@@ -174,9 +177,16 @@ private:
    */
   void evalSlopeRoughnessCost(const auto & batches_of_trajectories_points, auto & costs) const;
 
-  auto evalFootprintPoints(const double & x, const double & y) const
-    ->xt::xtensor<T, 3>;
+  auto footprintPointsAtPose(const T & x, const T & y) const -> xt::xtensor<T, 2>;
 
+  void slopeRoughnessAtPose(const T & x, const T & y, T & slp, T & rgh) const;
+
+  void fitPlane(
+    const xt::xtensor<T, 2> & points, 
+    T & a, 
+    T & b, 
+    T & c, 
+    T & sum_resid) const;
 
   /**
    * @brief Evaluate cost related to robot orientation at goal pose (considered only if robot near last goal in current plan)

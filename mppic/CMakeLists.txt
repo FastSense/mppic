@@ -3,6 +3,8 @@ project(mppic)
 
 set(CMAKE_BUILD_TYPE Release) # temporary hack coz conan rise error with colcon build without setting build type
 
+
+
 find_package(ament_cmake REQUIRED)
 find_package(nav2_common REQUIRED)
 
@@ -22,6 +24,8 @@ set(packages
   nav2_util
   grid_map_msgs
   grid_map_ros
+  xtensor
+  xtensor-blas
 )
 
 foreach(pkg IN LISTS packages)
@@ -50,5 +54,8 @@ install(DIRECTORY include/
   DESTINATION include/
 )
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-value -O0 -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing")
 
 ament_package()
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-value -O0 -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing")

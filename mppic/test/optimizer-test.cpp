@@ -18,6 +18,9 @@
 #include "grid_map_ros/grid_map_ros.hpp"
 #include <iostream>
 
+constexpr int time_steps = 30;
+constexpr int batch_size = 100;
+
 
 /**
  * Adds some parameters for the optimizer to a special container.
@@ -27,7 +30,8 @@
 void setUpOptimizerParams(std::vector<rclcpp::Parameter> &params_){
   params_.push_back(rclcpp::Parameter("TestNode.iteration_count", 5));
   params_.push_back(rclcpp::Parameter("TestNode.lookahead_dist", 5));
-  params_.push_back(rclcpp::Parameter("TestNode.time_steps", 30));
+  params_.push_back(rclcpp::Parameter("TestNode.time_steps", time_steps));
+  params_.push_back(rclcpp::Parameter("TestNode.batch_size", batch_size));
 }
 
 
@@ -50,26 +54,31 @@ void printGridMapLayer(grid_map::GridMap & grid_map, const std::string & layer_n
 void printGridMapLayerWithTrajectoryAndGoal(grid_map::GridMap & grid_map, 
                                           const std::string & layer_name,
                                           const auto & trajectory,
-                                          const geometry_msgs::msg::PoseStamped & goal_point){
+                                          const geometry_msgs::msg::PoseStamped & goal_point)
+{
   auto matrix = grid_map.get(layer_name);
-  double grid_map_resolution = grid_map.getResolution();
-  float origin_x = grid_map.getPosition()(0);
-  float origin_y = grid_map.getPosition()(1);
-  std::cout<<"GridMap \n start point=-100 trajectory=-1 goal point=100 \n"<<std::endl;
-  int start_point_x = (trajectory(0, 0) - origin_x)/ grid_map_resolution;
-  int start_point_y = (trajectory(0, 1) - origin_y)/ grid_map_resolution;
-  matrix(start_point_x, start_point_y) = -100.0;
-  for (size_t i = 1; i < trajectory.shape()[0]; ++i){
-    int traj_point_x = (trajectory(i, 0) - origin_x)/ grid_map_resolution;
-    int traj_point_y = (trajectory(i, 1) - origin_y)/ grid_map_resolution;
-    if (traj_point_x!=start_point_x || traj_point_y!=start_point_y){
-      matrix(traj_point_x, traj_point_y) = -1.0;
-    }
+
+  std::cout << "GridMap \n start point=-100 trajectory=-1 goal point=100 \n" << std::endl;
+  std::cout << "Start point = " << trajectory(0, 0) << ", " << trajectory(0, 1) << "; ";
+  std::cout << "Goal point = " << goal_point.pose.position.x << ", " <<  goal_point.pose.position.y << std::endl;;
+
+  grid_map::Index start_ij, goal_ij, traj_ij;
+  bool on_map = grid_map.getIndex({trajectory(0, 0), trajectory(0, 1)}, start_ij);
+
+  if (on_map)
+    matrix(start_ij[0], start_ij[1]) = -100.0;
+
+  for (size_t i = 1; i < trajectory.shape()[0]; i++)
+  {
+    bool on_map = grid_map.getIndex({trajectory(i, 0), trajectory(i, 1)}, traj_ij);
+    if (on_map and (traj_ij != start_ij).any())
+      matrix(traj_ij[0], traj_ij[1]) = -1.0;
   }
 
-  float goal_ind_x = (goal_point.pose.position.x - origin_x) / grid_map_resolution;
-  float goal_ind_y = (goal_point.pose.position.y - origin_y) / grid_map_resolution;
-  matrix(goal_ind_x, goal_ind_y) = 100.0;
+  on_map = grid_map.getIndex({goal_point.pose.position.x, goal_point.pose.position.y}, goal_ij);
+  if (on_map)
+    matrix(goal_ij[0], goal_ij[1]) = 100.0;
+
   std::cout<<matrix<<std::endl;
 }
 
@@ -141,27 +150,28 @@ bool InCollison(const grid_map::GridMap & grid_map,
                               std::string & layer_name,
                               float robot_clearance,
                               const auto & trajectory){
-
+  
   auto & matrix = grid_map.get(layer_name);
-  double grid_map_resolution = grid_map.getResolution();
-  float origin_x = grid_map.getPosition()(0);
-  float origin_y = grid_map.getPosition()(1);
+  grid_map::Index prev_ij, traj_ij;
+  if (not grid_map.getIndex({trajectory(0, 0), trajectory(0, 1)}, prev_ij))
+    return true;
 
-  int traj_point_x_prev = (trajectory(0, 0) - origin_x)/ grid_map_resolution;
-  int traj_point_y_prev = (trajectory(0, 1) - origin_y)/ grid_map_resolution;
-  for (size_t i = 1; i < trajectory.shape()[0]; ++i){
-    int traj_point_x = (trajectory(i, 0) - origin_x)/ grid_map_resolution;
-    int traj_point_y = (trajectory(i, 1) - origin_y)/ grid_map_resolution;
-    bool cant_drive = abs(matrix(traj_point_x, traj_point_y) - matrix(traj_point_x_prev, traj_point_y_prev)) > robot_clearance;
-    if (cant_drive){
+  for (size_t i = 1; i < trajectory.shape()[0]; i++)
+  {
+    if (not grid_map.getIndex({trajectory(i, 0), trajectory(i, 1)}, traj_ij))
       return true;
-    }
-    traj_point_x_prev = traj_point_x;
-    traj_point_y_prev = traj_point_y;
+
+    bool cant_drive = abs(matrix(traj_ij[0], traj_ij[1]) - matrix(prev_ij[0], prev_ij[1])) > robot_clearance;
+    
+    if (cant_drive) 
+      return true;
+    
+    prev_ij = traj_ij;
   }
   return false;
 }
 
+/*
 TEST_CASE("Optimizer evaluates Next Control", "") {
   using T = float;
 
@@ -181,10 +191,19 @@ TEST_CASE("Optimizer evaluates Next Control", "") {
   optimizer.on_configure(node, node_name, costmap_ros, grid_map, model);
   optimizer.on_activate();
 
-  size_t poses_count = GENERATE(10, 30, 100);
+  size_t poses_count = GENERATE(10, time_steps, batch_size);
 
   SECTION("Running evalNextControl") {
     geometry_msgs::msg::Twist twist;
+
+    twist.linear.x = 0;
+    twist.linear.y = 0;
+    twist.linear.z = 0;
+
+    twist.angular.x = 0;
+    twist.angular.y = 0;
+    twist.angular.z = 0;
+
 
     std::string frame = "odom";
     auto time = node->get_clock()->now();
@@ -196,6 +215,7 @@ TEST_CASE("Optimizer evaluates Next Control", "") {
 
     nav_msgs::msg::Path path;
     geometry_msgs::msg::PoseStamped ps;
+    
     setHeader(ps);
     setHeader(path);
 
@@ -222,6 +242,8 @@ TEST_CASE("Optimizer evaluates Next Control", "") {
   costmap_ros->on_cleanup(st);
   costmap_ros.reset();
 }
+*/ 
+
 
 TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]") {
   using T = float;
@@ -263,8 +285,11 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
   optimizer.on_activate();
 
   size_t reference_path_lenght = GENERATE(50);  
-  float start_point_x = GENERATE(1.25, 0.7);
-  float start_point_y = GENERATE(1.5, 0.5);
+  // float start_point_x = GENERATE(0.9, 0.95);
+  // float start_point_y = GENERATE(0.9, 0.5);
+
+  float start_point_x = GENERATE(0.8);
+  float start_point_y = GENERATE(0.8);
 
   SECTION("Optimizer produces a trajectory that does not cross obstacles on the gridmap") {
 
@@ -275,7 +300,7 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     geometry_msgs::msg::Twist init_robot_vel; 
     float robot_clearance = 0.1;          
     float x_step = -0.012;
-    float y_step = -0.002;
+    float y_step = -0.0072;
     init_robot_pose.pose.position.x = start_point_x;
     init_robot_pose.pose.position.y = start_point_y;
 
@@ -330,9 +355,10 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
       ramp_left_upper_corner_cells
     );
 
-    // update controal sequence in optimizer
+    std::cout << "update controal sequence in optimizer\n";
     CHECK_NOTHROW(optimizer.evalNextBestControl(init_robot_pose, init_robot_vel, reference_path));
-    // get best trajectory from optimizer
+
+    std::cout << "get best trajectory from optimizer\n";
     auto trajectory = optimizer.evalTrajectoryFromControlSequence(init_robot_pose, init_robot_vel);
 
 #ifdef TEST_DEBUG_INFO

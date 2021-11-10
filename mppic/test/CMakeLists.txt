@@ -1,5 +1,5 @@
 if(BUILD_TESTING)
-
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-value -O0 -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing")
   enable_testing()
 
   add_library(catch_main STATIC catch_main.cpp)
@@ -15,7 +15,8 @@ if(BUILD_TESTING)
 
   add_executable(optimizer-test optimizer-test.cpp)
   ament_target_dependencies(optimizer-test ${packages})
-  target_link_libraries(optimizer-test CONAN_PKG::xtensor catch_main mppic)
+  # target_link_libraries(optimizer-test CONAN_PKG::xtensor catch_main mppic)
+  target_link_libraries(optimizer-test xtensor catch_main mppic)
   target_include_directories(optimizer-test PRIVATE ../include)
   target_compile_options(optimizer-test PRIVATE -fconcepts)
   set_target_properties(optimizer-test
@@ -27,7 +28,9 @@ if(BUILD_TESTING)
 
   add_executable(geometry-test geometry-test.cpp)
   ament_target_dependencies(geometry-test ${packages})
-  target_link_libraries(geometry-test CONAN_PKG::xtensor catch_main mppic)
+  # target_link_libraries(geometry-test CONAN_PKG::xtensor catch_main mppic)
+  target_link_libraries(geometry-test xtensor catch_main mppic)
+
   target_include_directories(geometry-test PRIVATE ../include)
   target_compile_options(geometry-test PRIVATE -fconcepts)
   set_target_properties(geometry-test 

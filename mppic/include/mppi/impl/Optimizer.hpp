@@ -7,11 +7,16 @@
 
 #include "xtensor/xmath.hpp"
 #include "xtensor/xrandom.hpp"
+#include "xtensor/xadapt.hpp"
+
+#include "xtensor-blas/xlinalg.hpp"
 
 #include "utils/common.hpp"
 #include "utils/geometry.hpp"
 
 #include <limits>
+#include <grid_map_core/iterators/CircleIterator.hpp>
+#include <cmath>
 
 namespace mppi::optimization
 {
@@ -23,10 +28,15 @@ auto Optimizer<T, Model>::evalNextBestControl(
   const nav_msgs::msg::Path & plan)
 -> geometry_msgs::msg::TwistStamped
 {
-  for (int i = 0; i < iteration_count_; ++i) {
+  for (int i = 0; i < iteration_count_; ++i) 
+  {
+    // std::cout << 1 << std::endl;
     generated_trajectories_ = generateNoisedTrajectories(robot_pose, robot_speed);
+    // std::cout << 2 << std::endl;
     auto costs = evalBatchesCosts(generated_trajectories_, plan, robot_pose);
+    // std::cout << 3 << std::endl;
     updateControlSequence(costs);
+    // std::cout << 4 << std::endl;
   }
   return getControlFromSequence(plan.header.stamp, costmap_ros_->getBaseFrameID());
 }
@@ -289,57 +299,150 @@ void Optimizer<T, Model>::evalSlopeRoughnessCost(
   auto & costs) const
 {
 
-  // auto & matrix = grid_map_->get("elevation");
-  // double grid_map_resolution = grid_map_->getResolution();
-  // float origin_x = grid_map_->getPosition()(0);
-  // float origin_y = grid_map_->getPosition()(1);
+  /** TODO
+   * - Add changable params
+   * - Add power param
+   **/
 
+  T slp_crit = 0.5;
+  T rgh_crit = 0.5;
+  T slp_w = 0.5;
+  T rgh_w = 1;
 
-  for (size_t i = 0; i < static_cast<size_t>(batch_size_); ++i) {
-    RCLCPP_INFO(this->logger_, "Publishing: Batch %d", i);
-    for (size_t j = 0; j < static_cast<size_t>(time_steps_); ++j) {
-        evalFootprintPoints(batches_of_trajectories_points(i, j, 0),  batches_of_trajectories_points(i, j, 1));
-      }
+  xt::xtensor<T, 3> slope_roughness = xt::zeros<T>({batch_size_, time_steps_, 2});
+  // std::cout << "evalSlopeRoughnessCost\n";
+  for (size_t batch = 0; batch < static_cast<size_t>(batch_size_); batch++)
+  {
+    // RCLCPP_INFO(this->logger_, "Publishing: Batch %d", batch);
+    
+    for (size_t step = 0; step < static_cast<size_t>(time_steps_); step++) 
+    {
+        T slope, roughness;
+        slopeRoughnessAtPose(
+          batches_of_trajectories_points(batch, step, 0), 
+          batches_of_trajectories_points(batch, step, 1), 
+          slope, 
+          roughness);
+        // RCLCPP_INFO(this->logger_, "Slope: %f, Roughness: %f", slope, roughness);
+        slope_roughness(batch, step, 0) = slope;
+        slope_roughness(batch, step, 1) = roughness;
     }
+  }
+
+
+
+  xt::xtensor<T, 1> slp_cost = xt::zeros<T>({slope_roughness.shape()[0]});
+  xt::xtensor<T, 1> rgh_cost = xt::zeros<T>({slope_roughness.shape()[0]});
+
+  xt::view(slp_cost, xt::all()) = xt::view(xt::sum(slope_roughness, {1}, xt::evaluation_strategy::immediate), xt::all(), 0);
+  xt::view(rgh_cost, xt::all()) = xt::view(xt::sum(slope_roughness, {1}, xt::evaluation_strategy::immediate), xt::all(), 1);
   
-  costs += xt::zeros_like(costs);
+  // std::cout << "slp " << slp_cost << "\n ";   
+  // std::cout << "rgh " << rgh_cost << "\n "; 
+  // std::cout << "cst " << costs << "\n "; 
+  
+  // std::cout << slp_cost.shape()[0] << " " << slp_cost.shape()[1] << " " << costs.shape()[0] << "\n";
+
+  costs += slp_cost * (slp_w / slp_crit);
+
+  // std::cout << "cst 2" << costs << "\n ";
 }
 
 template<typename T, typename Model>
-auto Optimizer<T, Model>::evalFootprintPoints(const double & x, const double & y) const
--> xt::xtensor<T, 3>
+void Optimizer<T, Model>::slopeRoughnessAtPose(const T & x, const T & y, T & slp, T & rgh) const
 {
-  double grid_map_resolution = grid_map_->getResolution();
-  float origin_x = grid_map_->getPosition()(0);
-  float origin_y = grid_map_->getPosition()(1);
-  // auto & matrix = grid_map_->get("elevation");
-
-
-  int grid_pos_i = x / grid_map_resolution;
-  int grid_pos_j = y / grid_map_resolution;
+  // std::cout << "slopeRoughnessAtPose\n";
+  xt::xtensor<T, 2> footprint = footprintPointsAtPose(x,  y);
   
-  grid_map::Index ij;
-  grid_map::Position gr_pos(x, y);
-  // grid_map::Index ij;
-  // grid_map::Pos
-  grid_map_->getIndex(gr_pos, ij);
+  if (footprint.shape()[0] < 20)
+  {
+    rgh = 5;
+    slp = 1.5;
+    return;
+  }
 
+  T a,b,c,resid;
+  // std::cout << "before footprint\n";
+  fitPlane(footprint, a, b, c, resid);
+  // std::cout << "after footprint\n";
 
-  grid_map::Index ij2(grid_pos_i, grid_pos_j);
-  grid_map::Position gr_pos2(x, y);
-  // grid_map::Index ij;
-  // grid_map::Pos
-  grid_map_->getPosition(ij2, gr_pos2);
+  xt::xtensor<T, 1> normal = {a, b, -1};
+  normal = normal / xt::linalg::norm(normal, 2);
 
-  RCLCPP_INFO(this->logger_, "Publishing: or x -- %f, or y -- %f", origin_x , origin_y);
-  RCLCPP_INFO(this->logger_, "Publishing: x -- %f, y -- %f", x , y);
-  RCLCPP_INFO(this->logger_, "Publishing: i0 -- %d, j0 -- %d", grid_pos_i , grid_pos_j);
-  RCLCPP_INFO(this->logger_, "Publishing: i1 -- %d, j1 -- %d", ij[0] , ij[1]);
-  RCLCPP_INFO(this->logger_, "Publishing: x1 -- %f, y1 -- %f", gr_pos2[0] , gr_pos2[1]);
-
-  return xt::zeros<float>({3, 3});
+  rgh = sqrt(resid / static_cast<T>(footprint.shape()[0]));
+  xt::xtensor<T, 1> uni_z = {0, 0, 1};
+  slp = acos(abs(xt::linalg::dot(normal, uni_z)(0)));
+  // std::cout << rgh << " " << slp << "\n";
 }
 
+template<typename T, typename Model>
+void Optimizer<T, Model>::fitPlane(
+  const xt::xtensor<T, 2> & points, 
+  T & a, 
+  T & b, 
+  T & c, 
+  T & sum_resid) const
+{
+  
+  xt::xtensor<T, 2> g = xt::ones_like(points);
+  xt::view(g, xt::all(), xt::range(0, 2)) = xt::view(points, xt::all(), xt::range(0, 2));
+
+  std::vector<int> sh = {points.shape()[0], 1};
+  xt::xtensor<T, 2> z = xt::zeros<T>(sh);
+  
+  xt::view(z, xt::all(), 0) = xt::view(points, xt::all(), 2);
+
+  // std::cout << "before lst" << "\n";
+  auto lstsq_res = xt::linalg::lstsq(g, z);
+  // std::cout << "after lst" << "\n";
+
+  a = std::get<0>(lstsq_res)(0, 0);
+  b = std::get<0>(lstsq_res)(1, 0);
+  c = std::get<0>(lstsq_res)(2, 0);
+  sum_resid = std::get<1>(lstsq_res)(0);
+  
+  // std::cout << a << b << c << sum_resid << "\n";
+}
+
+template<typename T, typename Model>
+auto Optimizer<T, Model>::footprintPointsAtPose(const T & x, const T & y) const
+-> xt::xtensor<T, 2>
+{
+  /** TODO 
+  - GridMap layer name selection;
+  - Border cases processing;
+  - Radius and/or other shape selection;
+
+  **/
+  // std::cout << "footprintPointsAtPose\n";
+  std::string layer_name = "elevation";
+  grid_map::Position center(x, y);
+  double radius = 0.2;
+  std::vector<T> points;
+
+  // RCLCPP_INFO(this->logger_, "Footprint");
+  for (grid_map::CircleIterator iterator(*grid_map_, center, radius); !iterator.isPastEnd(); ++iterator)
+  {
+    grid_map::Position point;
+    if (not grid_map_->getPosition(*iterator, point))
+    {
+      RCLCPP_FATAL(this->logger_, "Footprint out of grid map");
+      exit(-1);
+    }
+    // RCLCPP_INFO(this->logger_, "Point: %f, %f, %f", point[0] , point[1], grid_map_->at(layer_name, *iterator));
+    // std::cout << point[0] << " " << point[1] << " " << grid_map_->at(layer_name, *iterator) << "\n";
+    points.push_back(point[0]);
+    points.push_back(point[1]);
+    points.push_back(grid_map_->at(layer_name, *iterator));
+  }
+
+  std::vector<std::size_t> shape = {points.size() / 3, 3 };
+  // std::cout << "before adapt " << shape[0] << " " << shape[1] << "\n";
+
+  xt::xtensor<T, 2> footprint = xt::adapt(std::move(points), shape); 
+  
+  return footprint;
+}
 
 template<typename T, typename Model>
 void Optimizer<T, Model>::evalGoalCost(
