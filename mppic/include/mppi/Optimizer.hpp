@@ -18,8 +18,6 @@
 
 
 
-
-
 namespace mppi::optimization
 {
 
@@ -181,6 +179,10 @@ private:
 
   void slopeRoughnessAtPose(const T & x, const T & y, T & slp, T & rgh) const;
 
+  void evalSlopeTraversabilityCost(const auto & batches_of_trajectories_points, auto & costs) const;
+
+  bool minDistToUntraversableFromPose(const T & x, const T & y, T & dist) const;
+
   void fitPlane(
     const xt::xtensor<T, 2> & points, 
     T & a, 
@@ -273,6 +275,26 @@ private:
   size_t goal_angle_cost_power_;
   size_t goal_angle_cost_weight_;
 
+  T slope_cost_power_; // double
+  T slope_cost_weight_;
+  T slope_crit_;
+
+  T roughness_cost_power_; // uint;
+  T roughness_cost_weight_;
+  T roughness_crit_;
+
+  T slope_traversability_delta_;
+  T slope_traversability_alpha_;
+  T slope_traversability_lambda_;
+
+  T slope_traversability_cost_power_;
+  T slope_traversability_cost_weight_;
+  bool use_slope_traversability_;
+
+
+
+
+
   /**
    * @batches_ tensor of shape [ batch_size, time_steps, 5 ] where 5 stands for
    * robot linear, angluar velocities, linear control, angular control velocities, dt (time on which this control will be applied)
@@ -284,5 +306,6 @@ private:
 
   rclcpp::Logger logger_{rclcpp::get_logger("MPPI Optimizer")};
 };
+
 
 } // namespace mppi::optimization

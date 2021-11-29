@@ -8,7 +8,6 @@
 #include "xtensor/xmath.hpp"
 #include "xtensor/xrandom.hpp"
 #include "xtensor/xadapt.hpp"
-
 #include "xtensor-blas/xlinalg.hpp"
 
 #include "utils/common.hpp"
@@ -17,6 +16,7 @@
 #include <limits>
 #include <grid_map_core/iterators/CircleIterator.hpp>
 #include <cmath>
+#include <array>
 
 namespace mppi::optimization
 {
@@ -28,15 +28,16 @@ auto Optimizer<T, Model>::evalNextBestControl(
   const nav_msgs::msg::Path & plan)
 -> geometry_msgs::msg::TwistStamped
 {
+  //std::cout << "UUUUUUUUUUPPPDAAAATE\n";
   for (int i = 0; i < iteration_count_; ++i) 
   {
-    // std::cout << 1 << std::endl;
+    //std::cout << "iter " << i << "\n";
     generated_trajectories_ = generateNoisedTrajectories(robot_pose, robot_speed);
-    // std::cout << 2 << std::endl;
+    //std::cout << "generated_trajectories_ \n";
     auto costs = evalBatchesCosts(generated_trajectories_, plan, robot_pose);
-    // std::cout << 3 << std::endl;
+    //std::cout << "costs \n";
     updateControlSequence(costs);
-    // std::cout << 4 << std::endl;
+    
   }
   return getControlFromSequence(plan.header.stamp, costmap_ros_->getBaseFrameID());
 }
@@ -100,6 +101,25 @@ auto Optimizer<T, Model>::getParams()
   threshold_to_consider_goal_angle_ = getParam("threshold_to_consider_goal_angle", 0.30);
 
   approx_reference_cost_ = getParam("approx_reference_cost", false);
+
+  slope_cost_power_ = getParam("slope_cost_power", 1.0);
+  slope_cost_weight_ = getParam("slope_cost_weight", 1.0);
+  slope_crit_ = getParam("slope_crit_", 0.5);
+
+  roughness_cost_power_ = getParam("roughness_cost_power", 1.0);
+  roughness_cost_weight_ = getParam("roughness_cost_weight", 1.0);
+  roughness_crit_ = getParam("roughness_crit_", 0.5);
+
+  slope_traversability_delta_ = getParam("slope_traversability_delta_", 0.1);
+  slope_traversability_alpha_ = getParam("slope_traversability_alpha", 0.5);
+  slope_traversability_lambda_ = getParam("slope_traversability_lambda_", 1.0);
+
+  slope_traversability_cost_power_ = getParam("slope_traversability_cost_power", 1.0);
+  slope_traversability_cost_weight_ = getParam("slope_traversability_cost_weight", 10.0);
+
+  use_slope_traversability_ = getParam("use_slope_traversability", false);
+
+  // TODO new params
 }
 
 template<typename T, typename Model>
@@ -117,9 +137,13 @@ auto Optimizer<T, Model>::generateNoisedTrajectories(
   const geometry_msgs::msg::Twist & twist)
 -> xt::xtensor<T, 3>
 {
+  //std::cout << 1 << "\n";
   getBatchesControls() = generateNoisedControlBatches();
+  //std::cout << 2 << "\n";
   applyControlConstraints();
+  //std::cout << 3 << "\n";
   evalBatchesVelocities(twist);
+  //std::cout << 4 << "\n";
   return integrateBatchesVelocities(pose);
 }
 
@@ -175,7 +199,6 @@ auto Optimizer<T, Model>::propagateBatchesVelocitiesFromInitials()
   }
 }
 
-
 template<typename T, typename Model>
 auto Optimizer<T, Model>::evalTrajectoryFromControlSequence(
   const geometry_msgs::msg::PoseStamped & robot_pose,
@@ -193,7 +216,6 @@ auto Optimizer<T, Model>::evalTrajectoryFromControlSequence(
     xt::view(batch, xt::all(), xt::range(0, 2)),
     robot_pose);
 }
-
 
 template<typename T, typename Model>
 void Optimizer<T, Model>::propagateSequenceVelocities(
@@ -218,6 +240,8 @@ auto Optimizer<T, Model>::integrateSequence(
 
   auto v = xt::view(velocities_sequence, xt::all(), 0);
   auto w = xt::view(velocities_sequence, xt::all(), 1);
+  
+
 
   auto yaw = xt::cumsum(w * model_dt_, 0);
 
@@ -282,15 +306,147 @@ auto Optimizer<T, Model>::evalBatchesCosts(
   if (global_plan.poses.empty()) {
     return costs;
   }
-
+  //std::cout << 11 << "\n";
   auto && path_tensor = geometry::toTensor<T>(global_plan);
+  //std::cout << 12 << "\n";
   approx_reference_cost_ ? evalApproxReferenceCost(batches_of_trajectories, path_tensor, costs) :
   evalReferenceCost(batches_of_trajectories, path_tensor, costs);
+  //std::cout << 13 << "\n";
   evalGoalCost(batches_of_trajectories, path_tensor, costs);
+  //std::cout << 14 << "\n";
   evalGoalAngleCost(batches_of_trajectories, path_tensor, robot_pose, costs);
+  //std::cout << 15 << "\n";
   evalObstacleCost(batches_of_trajectories, costs);
-  evalSlopeRoughnessCost(batches_of_trajectories, costs);
+  //std::cout << "grid map cost\n";
+  if (use_slope_traversability_)
+    evalSlopeTraversabilityCost(batches_of_trajectories, costs);
+  else  
+    evalSlopeRoughnessCost(batches_of_trajectories, costs);
   return costs;
+}
+
+template<typename T, typename Model>
+void Optimizer<T, Model>::evalSlopeTraversabilityCost(
+  const auto & batches_of_trajectories_points, 
+  auto & costs) const
+{
+  //std::cout << "evalSlopeTraversabilityCost\n";
+   constexpr T collision_cost_value = std::numeric_limits<T>::max() / 2;
+  
+  auto robotOnUntraversable = [this](const T & dist)
+    {
+      return dist < this->inscribed_radius_;   
+    };
+
+  for (size_t i = 0; i < static_cast<size_t>(batch_size_); i++) 
+  {
+    
+    double min_dist = std::numeric_limits<T>::max();
+    bool is_closest_point_inflated = false;
+    
+    for (size_t j = 0; j < static_cast<size_t>(time_steps_); j++) 
+    {
+      
+      T traj_pos_x = batches_of_trajectories_points(i, j, 0);
+      T traj_pos_y = batches_of_trajectories_points(i, j, 1);
+      T dist_to_untraversable;
+      
+      if(minDistToUntraversableFromPose(traj_pos_x, traj_pos_y, dist_to_untraversable))
+      {
+        if(robotOnUntraversable(dist_to_untraversable))
+        {
+          is_closest_point_inflated = false;
+          // std::cout << "collision\n ";
+          // std::cout << this->inscribed_radius_ << std::endl;
+          costs[i] = collision_cost_value;
+          break;
+        }
+        if(dist_to_untraversable < min_dist)
+        {
+          is_closest_point_inflated = true;
+          min_dist = dist_to_untraversable;
+        }
+      }
+    }
+    //std::cout << "infl " << is_closest_point_inflated << " infl " << inflation_radius_ << " insc " << inscribed_radius_ << "\n";
+    if (is_closest_point_inflated) 
+    {
+      //std::cout << "min dist " << min_dist << "\n";
+      costs[i] += pow(
+        (1.01 * inflation_radius_ - min_dist) * slope_traversability_cost_weight_,
+        slope_traversability_cost_power_);
+    }
+  }
+}
+
+template<typename T, typename Model>
+bool Optimizer<T, Model>::minDistToUntraversableFromPose(
+  const T & x, 
+  const T & y, 
+  T & dist) const
+{
+  //std::cout << "minDistToUntraversableFromPose\n";
+  auto isUntraversable = [this](const grid_map::Index & cell)
+  {
+    std::string layer_name = "elevation";
+    grid_map::Position cell_pos, p1, p2;
+    grid_map::Index i1, i2;
+    auto slope_xy = std::array<T, 2>();
+    grid_map_->getPosition(cell, cell_pos);
+
+    for(size_t i = 0; i < 2; i++)
+    {
+      p1 = cell_pos;
+      p2 = cell_pos;
+      p1[i] -= this->slope_traversability_delta_;
+      p2[i] += this->slope_traversability_delta_;
+
+      if (grid_map_->getIndex(p1, i1) and grid_map_->getIndex(p2, i2))
+        slope_xy[i] = std::abs((grid_map_->at(layer_name, i1) - grid_map_->at(layer_name, i2))) / (2 * slope_traversability_delta_);
+      else
+        return true;
+    }
+
+    T slope = slope_traversability_alpha_ * slope_xy[0] + 
+              (1 - slope_traversability_alpha_) * slope_xy[1];
+
+    T traversable = std::exp(-slope_traversability_lambda_ * slope);
+    
+    return not (traversable > 0.5);   
+  };
+
+  if (grid_map_->getLength().x() / 2 < std::abs(x) or grid_map_->getLength().y() / 2 < abs(y))
+  {
+    dist = 0;
+    return true;
+  }
+
+  T min_dist_to_bounds = (grid_map_->getLength().x() / 2 - std::abs(x)) < (grid_map_->getLength().y() / 2 - std::abs(y)) ? 
+                         (grid_map_->getLength().x() / 2 - std::abs(x)) :
+                         (grid_map_->getLength().y() / 2 - std::abs(y));
+
+  bool obstacle_found = (min_dist_to_bounds < inflation_radius_) ? true : false;
+  T min_dist = (min_dist_to_bounds < inflation_radius_) ? min_dist_to_bounds : std::numeric_limits<T>::max();
+  grid_map::Position center(x, y);
+  double radius = inscribed_radius_;
+
+  for (grid_map::CircleIterator iterator(*grid_map_, center, radius); !iterator.isPastEnd(); ++iterator)
+  {
+    if (isUntraversable(*iterator))
+    {
+      obstacle_found = true;
+      grid_map::Position point;
+      grid_map_->getPosition(*iterator, point);
+      T dist_to_obst = (point - center).norm();
+      if (dist_to_obst < min_dist)
+      {
+        min_dist = dist_to_obst;
+      }
+    }
+  }
+
+  dist = min_dist;
+  return obstacle_found;
 }
 
 template<typename T, typename Model>
@@ -298,38 +454,26 @@ void Optimizer<T, Model>::evalSlopeRoughnessCost(
   const auto & batches_of_trajectories_points,
   auto & costs) const
 {
-
-  /** TODO
-   * - Add changable params
-   * - Add power param
-   **/
-
-  T slp_crit = 0.5;
-  T rgh_crit = 0.5;
-  T slp_w = 0.5;
-  T rgh_w = 1;
+  //std::cout << "evalSlopeRoughnessCost\n";
+  // Evaluation of trajectoriest lengths using Kahan summation algorithm
 
   xt::xtensor<T, 3> slope_roughness = xt::zeros<T>({batch_size_, time_steps_, 2});
-  // std::cout << "evalSlopeRoughnessCost\n";
+  T slope, roughness;
+
   for (size_t batch = 0; batch < static_cast<size_t>(batch_size_); batch++)
   {
-    // RCLCPP_INFO(this->logger_, "Publishing: Batch %d", batch);
-    
     for (size_t step = 0; step < static_cast<size_t>(time_steps_); step++) 
     {
-        T slope, roughness;
         slopeRoughnessAtPose(
           batches_of_trajectories_points(batch, step, 0), 
           batches_of_trajectories_points(batch, step, 1), 
           slope, 
           roughness);
-        // RCLCPP_INFO(this->logger_, "Slope: %f, Roughness: %f", slope, roughness);
+
         slope_roughness(batch, step, 0) = slope;
         slope_roughness(batch, step, 1) = roughness;
     }
   }
-
-
 
   xt::xtensor<T, 1> slp_cost = xt::zeros<T>({slope_roughness.shape()[0]});
   xt::xtensor<T, 1> rgh_cost = xt::zeros<T>({slope_roughness.shape()[0]});
@@ -337,24 +481,22 @@ void Optimizer<T, Model>::evalSlopeRoughnessCost(
   xt::view(slp_cost, xt::all()) = xt::view(xt::sum(slope_roughness, {1}, xt::evaluation_strategy::immediate), xt::all(), 0);
   xt::view(rgh_cost, xt::all()) = xt::view(xt::sum(slope_roughness, {1}, xt::evaluation_strategy::immediate), xt::all(), 1);
   
-  // std::cout << "slp " << slp_cost << "\n ";   
-  // std::cout << "rgh " << rgh_cost << "\n "; 
-  // std::cout << "cst " << costs << "\n "; 
-  
-  // std::cout << slp_cost.shape()[0] << " " << slp_cost.shape()[1] << " " << costs.shape()[0] << "\n";
+  // std::cout << slp_cost << "\n";
+  // std::cout << rgh_cost << "\n";
 
-  costs += slp_cost * (slp_w / slp_crit);
-
-  // std::cout << "cst 2" << costs << "\n ";
+  costs += xt::pow(slp_cost / slope_crit_, slope_cost_power_) * slope_cost_weight_;
+  costs += xt::pow(rgh_cost / roughness_crit_, roughness_cost_power_) * roughness_cost_weight_;
 }
 
 template<typename T, typename Model>
 void Optimizer<T, Model>::slopeRoughnessAtPose(const T & x, const T & y, T & slp, T & rgh) const
 {
-  // std::cout << "slopeRoughnessAtPose\n";
+  //std::cout << "slopeRoughnessAtPose\n";
   xt::xtensor<T, 2> footprint = footprintPointsAtPose(x,  y);
   
-  if (footprint.shape()[0] < 20)
+  /* TODO*/
+  // std::cout << "shape" << footprint.shape()[0] << "\n";
+  if (footprint.shape()[0] < 4)
   {
     rgh = 5;
     slp = 1.5;
@@ -362,17 +504,16 @@ void Optimizer<T, Model>::slopeRoughnessAtPose(const T & x, const T & y, T & slp
   }
 
   T a,b,c,resid;
-  // std::cout << "before footprint\n";
-  fitPlane(footprint, a, b, c, resid);
-  // std::cout << "after footprint\n";
 
+  fitPlane(footprint, a, b, c, resid);
+  
+  // std::cout << "after fit" << "\n";
   xt::xtensor<T, 1> normal = {a, b, -1};
   normal = normal / xt::linalg::norm(normal, 2);
 
   rgh = sqrt(resid / static_cast<T>(footprint.shape()[0]));
   xt::xtensor<T, 1> uni_z = {0, 0, 1};
   slp = acos(abs(xt::linalg::dot(normal, uni_z)(0)));
-  // std::cout << rgh << " " << slp << "\n";
 }
 
 template<typename T, typename Model>
@@ -382,63 +523,73 @@ void Optimizer<T, Model>::fitPlane(
   T & b, 
   T & c, 
   T & sum_resid) const
-{
-  
+{  
+  //std::cout << "fitPlane\n";
+
+  // std::cout << points << "\n";
   xt::xtensor<T, 2> g = xt::ones_like(points);
   xt::view(g, xt::all(), xt::range(0, 2)) = xt::view(points, xt::all(), xt::range(0, 2));
 
   std::vector<int> sh = {points.shape()[0], 1};
   xt::xtensor<T, 2> z = xt::zeros<T>(sh);
-  
   xt::view(z, xt::all(), 0) = xt::view(points, xt::all(), 2);
 
-  // std::cout << "before lst" << "\n";
+  // std::cout << g << "\n";
+  // std::cout << z << "\n";
+
+  // std::cout << "Pre lstsq\n";
   auto lstsq_res = xt::linalg::lstsq(g, z);
-  // std::cout << "after lst" << "\n";
+  // std::cout << "Post lstsq\n";
+  // std::cout << "res shape " << std::get<0>(lstsq_res).shape()[0] << " " << std::get<0>(lstsq_res).shape()[1] << "\n";
+
+  // std::cout << std::get<0>(lstsq_res) << "\n";
+  // std::cout << std::get<1>(lstsq_res) << "\n";
+  // std::cout << std::get<2>(lstsq_res) << "\n";
+  // std::cout << std::get<3>(lstsq_res) << "\n";
 
   a = std::get<0>(lstsq_res)(0, 0);
   b = std::get<0>(lstsq_res)(1, 0);
   c = std::get<0>(lstsq_res)(2, 0);
   sum_resid = std::get<1>(lstsq_res)(0);
-  
-  // std::cout << a << b << c << sum_resid << "\n";
 }
 
 template<typename T, typename Model>
 auto Optimizer<T, Model>::footprintPointsAtPose(const T & x, const T & y) const
 -> xt::xtensor<T, 2>
 {
+  //std::cout << "footprintPointsAtPose\n";
   /** TODO 
   - GridMap layer name selection;
-  - Border cases processing;
-  - Radius and/or other shape selection;
-
+  - Improve border cases processing;
+  - Not circle shape selection;
   **/
-  // std::cout << "footprintPointsAtPose\n";
+
   std::string layer_name = "elevation";
   grid_map::Position center(x, y);
-  double radius = 0.2;
-  std::vector<T> points;
+  double radius = inscribed_radius_;
+  std::vector<T> points = std::vector<T>();
 
-  // RCLCPP_INFO(this->logger_, "Footprint");
+
+  bool footprint_inside_map = grid_map_->isInside(grid_map::Position(x + radius, y)) &&
+                              grid_map_->isInside(grid_map::Position(x - radius, y)) &&
+                              grid_map_->isInside(grid_map::Position(x, y + radius)) &&
+                              grid_map_->isInside(grid_map::Position(x, y - radius));
+
+  if (not footprint_inside_map)
+  {
+    return xt::xtensor<T, 2>();
+  }
+  
   for (grid_map::CircleIterator iterator(*grid_map_, center, radius); !iterator.isPastEnd(); ++iterator)
   {
     grid_map::Position point;
-    if (not grid_map_->getPosition(*iterator, point))
-    {
-      RCLCPP_FATAL(this->logger_, "Footprint out of grid map");
-      exit(-1);
-    }
-    // RCLCPP_INFO(this->logger_, "Point: %f, %f, %f", point[0] , point[1], grid_map_->at(layer_name, *iterator));
-    // std::cout << point[0] << " " << point[1] << " " << grid_map_->at(layer_name, *iterator) << "\n";
+    grid_map_->getPosition(*iterator, point);
     points.push_back(point[0]);
     points.push_back(point[1]);
     points.push_back(grid_map_->at(layer_name, *iterator));
   }
 
   std::vector<std::size_t> shape = {points.size() / 3, 3 };
-  // std::cout << "before adapt " << shape[0] << " " << shape[1] << "\n";
-
   xt::xtensor<T, 2> footprint = xt::adapt(std::move(points), shape); 
   
   return footprint;
@@ -471,12 +622,14 @@ void Optimizer<T, Model>::evalApproxReferenceCost(
   const auto & global_plan,
   auto & costs) const
 {
+  //std::cout << "evalApproxReferenceCost\n";
   auto path_points = xt::view(global_plan, xt::all(), xt::range(0, 2));
   auto batch_of_lines =
     xt::view(batches_of_trajectories, xt::all(), xt::all(), xt::newaxis(), xt::range(0, 2));
   auto dists = xt::norm_l2(path_points - batch_of_lines, {batch_of_lines.dimension() - 1});
   auto && cost = xt::mean(xt::amin(std::move(dists), 1), 1);
   costs += xt::pow(std::move(cost) * reference_cost_weight_, reference_cost_power_);
+  //std::cout << "end evalApproxReferenceCost\n";
 }
 
 template<typename T, typename Model>
@@ -485,18 +638,19 @@ void Optimizer<T, Model>::evalReferenceCost(
   const auto & global_plan,
   auto & costs) const
 {
+    //std::cout << "evalReferenceCost\n";
   xt::xtensor<T, 3> path_to_batches_dists =
     geometry::distPointsToLineSegments2D(global_plan, batches_of_trajectories);
-
+  //std::cout << "evalReferenceCost 1\n";
   xt::xtensor<T, 1> cost = xt::mean(
     xt::amin(
       std::move(path_to_batches_dists),
       1, xt::evaluation_strategy::immediate),
     1, xt::evaluation_strategy::immediate);
-
+  // std::cout << "evalReferenceCost 2\n";
   costs += xt::pow(std::move(cost) * reference_cost_weight_, reference_cost_power_);
+    // //std::cout << "end evalReferenceCost\n";
 }
-
 
 template<typename T, typename Model>
 void Optimizer<T, Model>::evalObstacleCost(
@@ -505,29 +659,37 @@ void Optimizer<T, Model>::evalObstacleCost(
 {
   constexpr T collision_cost_value = std::numeric_limits<T>::max() / 2;
 
-  auto minDistToObstacle = [this](const auto cost) {
+  auto minDistToObstacle = [this](const auto cost) 
+    {
       return (-1.0 / inflation_cost_scaling_factor_) *
              std::log(cost / (nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1)) +
              inscribed_radius_;
     };
 
-  for (size_t i = 0; i < static_cast<size_t>(batch_size_); ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(batch_size_); ++i) 
+  {
     double min_dist = std::numeric_limits<T>::max();
     bool is_closest_point_inflated = false;
-    size_t j = 0;
-    for (; j < static_cast<size_t>(time_steps_); ++j) {
+    
+    for (size_t j = 0; j < static_cast<size_t>(time_steps_); ++j) 
+    {
       double cost = costAtPose(
         batches_of_trajectories_points(i, j, 0),
         batches_of_trajectories_points(i, j, 1));
 
-      if (inCollision(cost)) {
+      if (inCollision(cost)) 
+      {
         costs[i] = collision_cost_value;
         is_closest_point_inflated = false;
         break;
-      } else {
-        if (cost != nav2_costmap_2d::FREE_SPACE) {
+      } 
+      else 
+      {
+        if (cost != nav2_costmap_2d::FREE_SPACE) 
+        {
           double dist = minDistToObstacle(cost);
-          if (dist < min_dist) {
+          if (dist < min_dist) 
+          {
             is_closest_point_inflated = true;
             min_dist = dist;
           }
@@ -535,7 +697,8 @@ void Optimizer<T, Model>::evalObstacleCost(
       }
     }
 
-    if (is_closest_point_inflated) {
+    if (is_closest_point_inflated) 
+    {
       costs[i] += pow(
         (1.01 * inflation_radius_ - min_dist) * obstacle_cost_weight_,
         obstacle_cost_power_);
@@ -572,6 +735,7 @@ template<typename T, typename Model>
 auto Optimizer<T, Model>::updateControlSequence(const xt::xtensor<T, 1> & costs)
 -> void
 {
+  
   auto && costs_normalized =
     costs - xt::amin(costs, xt::evaluation_strategy::immediate);
 
@@ -585,7 +749,6 @@ auto Optimizer<T, Model>::updateControlSequence(const xt::xtensor<T, 1> & costs)
 
   control_sequence_ = xt::sum(getBatchesControls() * softmaxes_expanded, 0);
 }
-
 
 template<typename T, typename Model>
 bool Optimizer<T, Model>::inCollision(unsigned char cost) const
@@ -602,12 +765,20 @@ template<typename T, typename Model>
 auto Optimizer<T, Model>::costAtPose(const double & x, const double & y) const
 -> double
 {
-  unsigned int mx, my;
-  if (not costmap_->worldToMap(x, y, mx, my)) {
-    return static_cast<double>(nav2_costmap_2d::LETHAL_OBSTACLE);
-  }
 
-  return static_cast<double>(costmap_->getCost(mx, my));
+    unsigned int mx, my;
+    if (not costmap_->worldToMap(x, y, mx, my)) 
+    {
+      if (costmap_ros_->getLayeredCostmap()->isTrackingUnknown())
+      {
+        return static_cast<T>(nav2_costmap_2d::LETHAL_OBSTACLE); // May be should be replaced with unknown_cost_value
+      }
+      else
+      {
+        return static_cast<T>(nav2_costmap_2d::FREE_SPACE);
+      }
+    }
+    return static_cast<T>(costmap_->getCost(mx, my));
 }
 
 template<typename T, typename Model>

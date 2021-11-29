@@ -174,8 +174,8 @@ distPointsToLineSegments2D(P && path, L && batch_of_segments_points)
   auto path_points = xt::view(path, xt::all(), xt::range(0, 2));
   auto batch_of_lines =
     xt::view(batch_of_segments_points, xt::all(), xt::all(), xt::range(0, 2));
-
-
+  
+  
   auto && closest_points = closestPointsOnLinesSegment2D(
     path_points,
     batch_of_lines);

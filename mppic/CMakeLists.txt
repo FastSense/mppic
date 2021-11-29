@@ -54,8 +54,6 @@ install(DIRECTORY include/
   DESTINATION include/
 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-value -O0 -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-value -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing -Wno-error=maybe-uninitialized")
 
 ament_package()
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-value -O0 -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing")
