@@ -1,8 +1,8 @@
 #define CATCH_CONFIG_MAIN // This tells the catch header to generate a main
-// #define DO_BENCHMARKS
-// #ifdef DO_BENCHMARKS
+
+#ifdef DO_BENCHMARKS
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
-// #endif
+#endif
 
 #include <catch2/catch.hpp>
 #include <rclcpp/rclcpp.hpp>

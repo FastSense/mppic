@@ -1,0 +1,16 @@
+[submodule "mppic/external/catch2"]
+	path = mppic/external/catch2
+	url = git@github.com:catchorg/Catch2.git
+	branch = v2.x
+[submodule "mppic/external/tinyxml2"]
+	path = mppic/external/tinyxml2
+	url = git@github.com:leethomason/tinyxml2.git
+[submodule "mppic/external/xtl"]
+	path = mppic/external/xtl
+	url = git@github.com:xtensor-stack/xtl.git
+[submodule "mppic/external/xtensor"]
+	path = mppic/external/xtensor
+	url = git@github.com:xtensor-stack/xtensor.git
+[submodule "mppic/external/xtensor-blas"]
+	path = mppic/external/xtensor-blas
+	url = git@github.com:xtensor-stack/xtensor-blas.git

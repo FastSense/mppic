@@ -8,6 +8,7 @@
 #include "xtensor/xmath.hpp"
 #include "xtensor/xrandom.hpp"
 #include "xtensor/xadapt.hpp"
+
 #include "xtensor-blas/xlinalg.hpp"
 
 #include "utils/common.hpp"
@@ -87,7 +88,7 @@ auto Optimizer<T, Model>::getParams()
   reference_cost_power_ = getParam("reference_cost_power", 1);
   reference_cost_weight_ = getParam("reference_cost_weight", 5);
 
-  goal_cost_power_ = getParam("goal_cost_power", 1.0);
+  goal_cost_power_ = getParam("goal_cost_power", 1);
   goal_cost_weight_ = getParam("goal_cost_weight", 20.0);
 
   goal_angle_cost_power_ = getParam("goal_angle_cost_power", 1.0);
@@ -105,7 +106,6 @@ auto Optimizer<T, Model>::getParams()
   slope_cost_power_ = getParam("slope_cost_power", 1.0);
   slope_cost_weight_ = getParam("slope_cost_weight", 1.0);
   slope_crit_ = getParam("slope_crit_", 0.5);
-
   roughness_cost_power_ = getParam("roughness_cost_power", 1.0);
   roughness_cost_weight_ = getParam("roughness_cost_weight", 1.0);
   roughness_crit_ = getParam("roughness_crit_", 0.5);
@@ -534,19 +534,11 @@ void Optimizer<T, Model>::fitPlane(
   xt::xtensor<T, 2> z = xt::zeros<T>(sh);
   xt::view(z, xt::all(), 0) = xt::view(points, xt::all(), 2);
 
-  // std::cout << g << "\n";
-  // std::cout << z << "\n";
 
-  // std::cout << "Pre lstsq\n";
+  
+  
   auto lstsq_res = xt::linalg::lstsq(g, z);
-  // std::cout << "Post lstsq\n";
-  // std::cout << "res shape " << std::get<0>(lstsq_res).shape()[0] << " " << std::get<0>(lstsq_res).shape()[1] << "\n";
-
-  // std::cout << std::get<0>(lstsq_res) << "\n";
-  // std::cout << std::get<1>(lstsq_res) << "\n";
-  // std::cout << std::get<2>(lstsq_res) << "\n";
-  // std::cout << std::get<3>(lstsq_res) << "\n";
-
+  
   a = std::get<0>(lstsq_res)(0, 0);
   b = std::get<0>(lstsq_res)(1, 0);
   c = std::get<0>(lstsq_res)(2, 0);

@@ -2,7 +2,9 @@
 #include <string>
 #include <cmath>
 
+#ifdef DO_BENCHMARKS
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
+#endif
 
 #include <catch2/catch.hpp>
 #include <tinyxml2.h>
@@ -63,7 +65,7 @@ void setUpOptimizerParams(std::vector<rclcpp::Parameter> &params_)
     {"roughness_cost_weight",             rclcpp::ParameterValue(default_roughness_cost_weight)},
     {"roughness_crit",                    rclcpp::ParameterValue(default_roughness_crit)},
 
-    {"use_slope_traversability",          rclcpp::ParameterValue(default_use_slope_traversability)},
+
     {"slope_traversability_delta",        rclcpp::ParameterValue(default_slope_traversability_delta)},
     {"slope_traversability_alpha",        rclcpp::ParameterValue(default_slope_traversability_alpha)},
     {"slope_traversability_lambda",       rclcpp::ParameterValue(default_slope_traversability_lambda)},
@@ -90,37 +92,29 @@ void setUpOptimizerParams(std::vector<rclcpp::Parameter> &params_)
           std::string param_name = e->Value();
           std::string param_type = e->Attribute("type");
           std::string param_value_str = e->Attribute("value");
-          std::cout << param_name << " " << param_type << " " << param_value_str << std::endl;
           if(param_type == "int64")
           {
-            std::cout << "int\n";
             int param_value;
             converter << param_value_str;
             converter >> param_value;
-            std::cout << param_value << "\n";
             param_value_ros = rclcpp::ParameterValue(param_value);
           }
           else if(param_type == "float64")
           {
-            std::cout << "double\n";
             double param_value;            
             converter << param_value_str;
             converter >> param_value;
-            std::cout << param_value << "\n";
             param_value_ros = rclcpp::ParameterValue(param_value);
           }
           else if(param_type == "bool")
           {
-            std::cout << "bool\n";
             bool param_value;
             converter << param_value_str;
             converter >> param_value;
-            std::cout << param_value << "\n";
             param_value_ros = rclcpp::ParameterValue(param_value);
           }
           else
           {
-            std::cout << "string\n";
             param_value_ros = rclcpp::ParameterValue(param_value_str);
           }
         params_dict[param_name] = param_value_ros;
@@ -143,11 +137,6 @@ void setUpOptimizerParams(std::vector<rclcpp::Parameter> &params_)
   std::cout << "Parameters read successfully\n";
 }
 
-
-// void setUpCostmapParams(std::vector<rclcpp::Parameter> &params_)
-// {
-//   params_.push_back(rclcpp::Parameter("cost_map_node.unknown_cost_value", 0));
-// }
 
 
 /*!
@@ -288,33 +277,18 @@ bool inCollison(const grid_map::GridMap & grid_map,
 
 
 TEST_CASE("Optimizer evaluates Next Control", "") {
-  // using T = float;
-
-  // std::string node_name = "TestNode";
-  // auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>(node_name);
-
-  // auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>("cost_map_node");
-  // auto grid_map = std::make_shared<grid_map::GridMap>();
-  // auto st = rclcpp_lifecycle::State{};
-
-  // auto & model = mppi::models::NaiveModel<T>;
-
-  // auto optimizer =
-  //   mppi::optimization::Optimizer<T>();
-
-  // costmap_ros->on_configure(st);
-  // optimizer.on_configure(node, node_name, costmap_ros, grid_map, model);
-  // optimizer.on_activate();
-
 
   using T = float;
   std::string node_name = "TestNode";
   std::string costmap_node_name = "cost_map_node";
-  std::cout << "hello+1\n";
 
   std::vector<rclcpp::Parameter> params_;
   rclcpp::NodeOptions options;
+
+
   setUpOptimizerParams(params_);
+  bool use_slope_traversability = GENERATE(true, false);
+  params_.push_back({"use_slope_traversability", rclcpp::ParameterValue(use_slope_traversability)});
   options.parameter_overrides(params_);
 
   auto & model = mppi::models::NaiveModel<T>;
@@ -351,8 +325,9 @@ TEST_CASE("Optimizer evaluates Next Control", "") {
   optimizer.on_configure(node, node_name, costmap_ros, grid_map, model);
   optimizer.on_activate();
 
-  size_t poses_count = GENERATE(10, 100, 500);
-
+  // size_t poses_count = GENERATE(500);
+  size_t poses_count = 10; 
+  
   SECTION("Running evalNextControl") {
     geometry_msgs::msg::Twist twist;
 
@@ -389,12 +364,13 @@ TEST_CASE("Optimizer evaluates Next Control", "") {
 
     CHECK_NOTHROW(optimizer.evalNextBestControl(ps, twist, path));
 
-// #ifdef DO_BENCHMARKS
+#ifdef DO_BENCHMARKS   
+
     WARN("Path with " << poses_count);
-    BENCHMARK("evalNextControl Benchmark") {
+    BENCHMARK("evalNextControl Benchmark. Use slope traversability: " + std::to_string(use_slope_traversability)) {
       return optimizer.evalNextBestControl(ps, twist, path);
     };
-// #endif
+#endif
   }
 
   optimizer.on_deactivate();
@@ -521,7 +497,7 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
       ramp_left_upper_corner_cells
     );
 
-    std::cout << "update controal sequence in optimizer\n";
+    std::cout << "update control sequence in optimizer\n";
     // optimizer.evalNextBestControl(init_robot_pose, init_robot_vel, reference_path);
     CHECK_NOTHROW(optimizer.evalNextBestControl(init_robot_pose, init_robot_vel, reference_path));
 
@@ -532,6 +508,8 @@ TEST_CASE("Optimizer evaluates Trajectory From Control Sequence", "[collision]")
     printGridMapLayerWithTrajectoryAndGoal(*grid_map, layer_name, trajectory, reference_goal_pose);
 #endif      
     CHECK(!inCollison(*grid_map, layer_name, robot_clearance, trajectory));
+
+
   }
 
   optimizer.on_deactivate();

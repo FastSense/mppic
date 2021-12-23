@@ -1,12 +1,13 @@
 
-add_library(mppic SHARED Controller.cpp PathHandler.cpp GridMapHandler.cpp)
+add_library(mppic STATIC Controller.cpp PathHandler.cpp GridMapHandler.cpp)
 target_include_directories(mppic PRIVATE ../include)
 ament_target_dependencies(mppic
   ${packages}
 )
 
 
-# target_link_libraries(mppic CONAN_PKG::xtensor)
+
+target_link_libraries(mppic ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 target_link_libraries(mppic xtensor)
 target_link_libraries(mppic xtensor-blas)
 

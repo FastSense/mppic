@@ -13,7 +13,7 @@
     <roughness_crit                     type="float64"  value="0.5"/>
 
     <!-- <reference_cost_weight type="int64"  value="2"/> -->
-    <use_slope_traversability           type="bool"     value="0"/>       
+    <!-- <use_slope_traversability           type="bool"     value="0"/>        -->
     <slope_traversability_delta         type="float64"  value="0.1"/>   
     <slope_traversability_alpha         type="float64"  value="0.5"/>    
     <slope_traversability_lambda        type="float64"  value="0.1"/>    
