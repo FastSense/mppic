@@ -1,5 +1,5 @@
 if(mppic_BUILD_TESTING)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -Wno-error=unused-value  -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing -Wno-error=maybe-uninitialized")
+  # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
   enable_testing()
 
   add_library(catch_main STATIC catch_main.cpp)
@@ -18,7 +18,7 @@ if(mppic_BUILD_TESTING)
   add_executable(optimizer-test optimizer-test.cpp)
   ament_target_dependencies(optimizer-test ${packages})
 
-  target_link_libraries(optimizer-test tinyxml2::tinyxml2 xtensor xtensor-blas ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} catch_main mppic)
+  target_link_libraries(optimizer-test tinyxml2 xtensor xtensor-blas ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} catch_main mppic)
   target_include_directories(optimizer-test PRIVATE ../include)
   target_compile_options(optimizer-test PRIVATE -fconcepts)
   set_target_properties(optimizer-test

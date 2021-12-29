@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.5)
 project(mppic)
 
 set(CMAKE_BUILD_TYPE Release) # temporary hack coz conan rise error with colcon build without setting build type
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-but-set-variable -Wno-error=uninitialized -Wno-error=unused-value -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=deprecated -Wno-error=narrowing -Wno-error=maybe-uninitialized -Wno-error=deprecated -Wno-error=pedantic -Wno-error=unused-but-set-variable -Wno-error=uninitialized -Wno-error=unused-value -Wno-error=parentheses -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing -Wno-error=maybe-uninitialized")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-but-set-variable -Wno-error=uninitialized -Wno-error=unused-value -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=deprecated -Wno-error=narrowing -Wno-error=maybe-uninitialized -Wno-error=deprecated -Wno-error=pedantic -Wno-error=unused-but-set-variable -Wno-error=uninitialized -Wno-error=unused-value -Wno-error=parentheses -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing -Wno-error=maybe-uninitialized -fPIC")
+
+# set(tinyxml2_SHARED_LIBS)
 
 find_package(ament_cmake REQUIRED)
 find_package(nav2_common REQUIRED)
