@@ -17,10 +17,16 @@
 #include <xtensor/xview.hpp>
 
 
+// slopeRoughnessAtPose(const T & x, const T & y, T & slp, T & rgh) const;
 
+//   void evalSlopeTraversabilityCost
 
 namespace mppi::optimization
 {
+
+  const std::string COSTMAP_METHOD = "costmap";
+  const std::string SLOPE_ROUGHNESS_METHOD = "slope_roughness";
+  const std::string SLOPE_TRAVERSABILITY_METHOD = "slope_traversability";
 
 template<typename T,
   typename Model = xt::xtensor<T, 2>(const xt::xtensor<T, 2>&)>
@@ -178,9 +184,9 @@ private:
 
   auto footprintPointsAtPose(const T & x, const T & y) const -> xt::xtensor<T, 2>;
 
-  void slopeRoughnessAtPose(const T & x, const T & y, T & slp, T & rgh) const;
+  bool slopeRoughnessAtPose(const T & x, const T & y, T & slp, T & rgh) const;
 
-  void evalSlopeTraversabilityCost(const auto & batches_of_trajectories_points, auto & costs) const;
+  void evalSlopeTraversabilityCost(const auto & batches_of_trajectories_points, const geometry_msgs::msg::PoseStamped & robot_pose, auto & costs) const;
 
   bool minDistToUntraversableFromPose(const T & x, const T & y, T & dist) const;
 
@@ -276,21 +282,24 @@ private:
   size_t goal_angle_cost_power_;
   size_t goal_angle_cost_weight_;
 
-  T slope_cost_power_; // double
-  T slope_cost_weight_;
-  T slope_crit_;
+  unsigned int slope_cost_power_; 
+  double slope_cost_weight_;
+  double slope_crit_;
 
-  T roughness_cost_power_; // uint;
-  T roughness_cost_weight_;
-  T roughness_crit_;
+  
+  unsigned int roughness_cost_power_; // uint;
+  double roughness_cost_weight_;
+  double roughness_crit_;
 
-  T slope_traversability_delta_;
-  T slope_traversability_alpha_;
-  T slope_traversability_lambda_;
+  double slope_traversability_delta_;
+  double slope_traversability_alpha_;
+  double slope_traversability_lambda_;
 
-  T slope_traversability_cost_power_;
-  T slope_traversability_cost_weight_;
-  bool use_slope_traversability_;
+  double slope_traversability_cost_power_;
+  double slope_traversability_cost_weight_;
+
+  std::string obstacle_avoidance_method_;
+  double footprint_radius_;
 
 
 

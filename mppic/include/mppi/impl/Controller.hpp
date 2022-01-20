@@ -66,8 +66,14 @@ auto Controller<T, Model>::computeVelocityCommands(
 -> geometry_msgs::msg::TwistStamped
 {
   auto && transformed_plan = path_handler_.transformPath(robot_pose);
+
+   
+
+  std::lock_guard<std::recursive_mutex> lk(this->grid_map_handler_.getAccess());
+
   auto && cmd = optimizer_.evalNextBestControl(
-    robot_pose, robot_speed, transformed_plan);
+        robot_pose, robot_speed, transformed_plan);
+  
 
   if (visualize_) {
     handleVisualizations(robot_pose, robot_speed, transformed_plan);

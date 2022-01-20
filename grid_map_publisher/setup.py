@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'testtest = grid_map_publisher.testtest:main',
+            'grid_map_publisher = grid_map_publisher.grid_map_publisher:main',
         ],
     },
 )
