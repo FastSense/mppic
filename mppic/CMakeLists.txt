@@ -67,6 +67,7 @@ ament_export_include_directories(include)
 pluginlib_export_plugin_description_file(nav2_core mppic.xml)
 
 add_subdirectory(test)
+add_subdirectory(experiments)
 
 install(TARGETS mppic
   ARCHIVE DESTINATION lib
@@ -74,6 +75,9 @@ install(TARGETS mppic
   RUNTIME DESTINATION bin
 )
 
+install(TARGETS experiments
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(DIRECTORY include/
   DESTINATION include/
