@@ -441,7 +441,7 @@ bool Optimizer<T, Model>::minDistToUntraversableFromPose(
   bool obstacle_found = false;
   double min_dist = std::numeric_limits<T>::max();
   grid_map::Position center(x, y);
-  double radius = footprint_radius_;
+  double radius = inflation_radius_;
 
   for (grid_map::CircleIterator iterator(*grid_map_, center, radius); !iterator.isPastEnd(); ++iterator)
   {
@@ -507,8 +507,8 @@ void Optimizer<T, Model>::evalSlopeRoughnessCost(
 
     if(not unknown)
     {
-      slp_cost(batch) = xt::sum(slope_values)[0];
-      rgh_cost(batch) = xt::sum(roughness_values)[0];
+      slp_cost(batch) = xt::amax(slope_values)[0];
+      rgh_cost(batch) = xt::amax(roughness_values)[0];
       costs(batch) += std::pow(slp_cost(batch) / slope_crit_, slope_cost_power_) * slope_cost_weight_;
       costs(batch) += std::pow(rgh_cost(batch) / roughness_crit_, roughness_cost_power_) * roughness_cost_weight_;
 
