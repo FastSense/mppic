@@ -115,6 +115,9 @@ private:
                    const nav_msgs::msg::Path &global_plan,
                    const geometry_msgs::msg::PoseStamped &robot_pose) const;
 
+  void evalBackwardMotionCost(const auto &batch_of_trajectories, 
+      auto &costs) const;
+
   /**
    * @brief Evaluate cost related to trajectories path alignment
    *
@@ -177,6 +180,8 @@ private:
    */
   void updateControlSequence(const xt::xtensor<T, 1> &costs);
 
+  void shiftControlSequence();
+
   std::vector<geometry_msgs::msg::Point>
   getOrientedFootprint(
     const std::array<double, 3> &robot_pose,
@@ -229,12 +234,15 @@ private:
   T w_std_;
   double v_limit_;
   double w_limit_;
+  double max_v_acc_;
+  double max_w_acc_;
   double temperature_;
 
-  unsigned int reference_cost_power_;
-  unsigned int obstacle_cost_power_;
-  unsigned int goal_cost_power_;
-  unsigned int goal_angle_cost_power_;
+  double backward_motion_cost_weight_;
+  double reference_cost_power_;
+  double obstacle_cost_power_;
+  double goal_cost_power_;
+  double goal_angle_cost_power_;
   double reference_cost_weight_;
   double obstacle_cost_weight_;
   double goal_cost_weight_;

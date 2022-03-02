@@ -27,8 +27,10 @@ geometry_msgs::msg::TwistStamped Optimizer<T, Model>::evalNextBestControl(
     auto costs = evalBatchesCosts(generated_trajectories_, plan, robot_pose);
     updateControlSequence(costs);
   }
-  return getControlFromSequence(plan.header.stamp,
+  auto result = getControlFromSequence(plan.header.stamp,
                                 costmap_ros_->getBaseFrameID());
+  shiftControlSequence();
+  return result;
 }
 
 template <typename T, typename Model>
@@ -63,11 +65,15 @@ template <typename T, typename Model> void Optimizer<T, Model>::getParams() {
   w_std_ = static_cast<T>(getParam("w_std", 0.3));
   v_limit_ = getParam("v_limit", 0.5);
   w_limit_ = getParam("w_limit", 1.3);
+  max_v_acc_ = getParam("max_v_acc", 1.0);
+	max_w_acc_ = getParam("max_w_acc", 2.0);
   iteration_count_ = static_cast<unsigned int>(getParam("iteration_count", 2));
   temperature_ = getParam("temperature", 0.25);
 
   reference_cost_power_ =
       static_cast<unsigned int>(getParam("reference_cost_power", 1));
+
+  backward_motion_cost_weight_ = getParam("backward_motion_cost_weight", 1.0);
 
   goal_cost_power_ = static_cast<unsigned int>(getParam("goal_cost_power", 1));
   goal_angle_cost_power_ =
@@ -127,6 +133,18 @@ void Optimizer<T, Model>::applyControlConstraints() {
 
   v = xt::clip(v, -v_limit_, v_limit_);
   w = xt::clip(w, -w_limit_, w_limit_);
+
+  for (size_t i = 1; i < time_steps_; i++)
+  {
+    auto v_i = xt::view(v, xt::all(), i);
+    auto v_prev = xt::view(v, xt::all(), i - 1);
+    double dv = max_v_acc_ * model_dt_;
+    xt::view(v, xt::all(), i) = xt::clip(v_i, v_prev - dv, v_prev + dv);
+    auto w_i = xt::view(w, xt::all(), i);
+    auto w_prev = xt::view(w, xt::all(), i - 1);
+    double dw = max_w_acc_ * model_dt_;
+    xt::view(w, xt::all(), i) = xt::clip(w_i, w_prev - dw, w_prev + dw);
+  }
 }
 
 template <typename T, typename Model>
@@ -209,16 +227,18 @@ xt::xtensor<T, dims::batches> Optimizer<T, Model>::integrateBatchesVelocities(
     const geometry_msgs::msg::PoseStamped &pose) const {
   using namespace xt::placeholders;
 
+  using namespace xt::placeholders;
+
   auto v = getBatchesLinearVelocities();
   auto w = getBatchesAngularVelocities();
-  auto yaw = xt::cumsum(w * model_dt_, 1);
+
+  double initial_yaw = tf2::getYaw(pose.pose.orientation);
+  xt::xtensor<T, 2> yaw = initial_yaw + xt::cumsum(w * model_dt_, 1);
 
   auto yaw_offseted = yaw;
   xt::view(yaw_offseted, xt::all(), xt::range(1, _)) =
       xt::eval(xt::view(yaw, xt::all(), xt::range(_, -1)));
-  xt::view(yaw_offseted, xt::all(), 0) = 0;
-  xt::view(yaw_offseted, xt::all(), xt::all()) +=
-      tf2::getYaw(pose.pose.orientation);
+  xt::view(yaw_offseted, xt::all(), 0) = initial_yaw;
 
   auto v_x = v * xt::cos(yaw_offseted);
   auto v_y = v * xt::sin(yaw_offseted);
@@ -248,6 +268,8 @@ xt::xtensor<T, 1> Optimizer<T, Model>::evalBatchesCosts(
 
   auto &&path_tensor = geometry::toTensor<T>(global_plan);
 
+  evalBackwardMotionCost(batches_of_trajectories, costs);
+
   approx_reference_cost_
       ? evalApproxReferenceCost(batches_of_trajectories, path_tensor, costs)
       : evalReferenceCost(batches_of_trajectories, path_tensor, costs);
@@ -256,6 +278,25 @@ xt::xtensor<T, 1> Optimizer<T, Model>::evalBatchesCosts(
   evalGoalAngleCost(batches_of_trajectories, path_tensor, robot_pose, costs);
   evalObstacleCost(batches_of_trajectories, costs);
   return costs;
+}
+
+template <typename T, typename Model>
+void Optimizer<T, Model>::evalBackwardMotionCost(
+  const auto &batches_of_trajectories_points,
+  auto &costs) const
+{
+  using namespace xt::placeholders;
+
+  xt::xtensor<T, 2> x_diff = xt::view(batches_of_trajectories_points, xt::all(), xt::range(1, _), 0) -
+              xt::view(batches_of_trajectories_points, xt::all(), xt::range(_, -1), 0);
+  xt::xtensor<T, 2> y_diff = xt::view(batches_of_trajectories_points, xt::all(), xt::range(1, _), 1) -
+              xt::view(batches_of_trajectories_points, xt::all(), xt::range(_, -1), 1);
+
+  xt::xtensor<T, 2> yaws = xt::view(batches_of_trajectories_points, xt::all(), xt::range(_, -1), 2);
+  xt::xtensor<T, 2> thetas = xt::atan2(y_diff, x_diff) - yaws - M_PI;
+  xt::xtensor<T, 2> v_negative = xt::cos(thetas) * xt::sqrt(x_diff * x_diff + y_diff * y_diff);
+  v_negative = xt::maximum(v_negative, 0);
+  costs += backward_motion_cost_weight_ * xt::sum(v_negative, 1);
 }
 
 template <typename T, typename Model>
@@ -552,6 +593,15 @@ auto Optimizer<T, Model>::getBatchesControls() {
   return xt::view(batches_, xt::all(), xt::all(),
                   xt::range(std::get<0>(idxes::control_range),
                             std::get<1>(idxes::control_range)));
+}
+
+template <typename T, typename Model>
+void Optimizer<T, Model>::shiftControlSequence()
+{
+  using namespace  xt::placeholders;		
+  xt::view(control_sequence_, xt::range(_, -1), xt::all()) = xt::view(control_sequence_, xt::range(1, _), xt::all());
+  control_sequence_(time_steps_ - 1, 0) = 0;
+  control_sequence_(time_steps_ - 1, 1) = 0;
 }
 
 } // namespace mppi::optimization
