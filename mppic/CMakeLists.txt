@@ -32,6 +32,7 @@ set(packages
   nav2_util
   grid_map_msgs
   grid_map_ros
+  std_msgs
 )
 
 foreach(pkg IN LISTS packages)

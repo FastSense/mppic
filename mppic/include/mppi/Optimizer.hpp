@@ -4,6 +4,7 @@
 #include "tf2/utils.h"
 
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
+#include "std_msgs/msg/float64.hpp"
 
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -315,6 +316,8 @@ namespace mppi::optimization
 		std::string obstacle_avoidance_method_;
 		double footprint_radius_;
 		bool predefined_trajectories_on_cold_start_;
+
+		rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Float64>::SharedPtr eval_time_publisher_;
 
 		/**
 		 * @batches_ tensor of shape [ batch_size, time_steps, 5 ] where 5 stands for

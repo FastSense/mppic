@@ -29,7 +29,7 @@ namespace mppi::optimization
 		const nav_msgs::msg::Path &plan)
 		-> geometry_msgs::msg::TwistStamped
 	{
-
+		auto t1 = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < iteration_count_; ++i)
 		{
 			generated_trajectories_ = generateNoisedTrajectories(robot_pose, robot_speed);
@@ -39,6 +39,13 @@ namespace mppi::optimization
 		auto result = getControlFromSequence(plan.header.stamp, costmap_ros_->getBaseFrameID());
 
 		shiftControlSequence();
+
+		auto t2 = std::chrono::high_resolution_clock::now();
+		auto dt = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+		double time_for_eval = dt.count();
+		std_msgs::msg::Float64 time_msg;
+		time_msg.data = time_for_eval;
+		eval_time_publisher_->publish(time_msg);
 
 		return result;
 	}
@@ -60,6 +67,9 @@ namespace mppi::optimization
 
 		costmap_ = costmap_ros_->getCostmap();
 		inscribed_radius_ = costmap_ros_->getLayeredCostmap()->getInscribedRadius();
+		std::cout << "INITIALIZE PUBLISHER" << std::endl;
+		eval_time_publisher_ = parent->create_publisher<std_msgs::msg::Float64>("eval_time", 10);
+		eval_time_publisher_->on_activate();
 
 		getParams();
 		resetBatches();
@@ -183,23 +193,23 @@ namespace mppi::optimization
 
 		for (int i = 0; i < 10 && i < time_steps_; i++)
 		{
-			xt::view(v_noises, i, xt::all(), 0) = 0.02 * i;
+			xt::view(v_noises, i, xt::all(), 0) = v_limit_ * 0.1 * (i + 1);
 			xt::view(w_noises, i, xt::all(), 0) = 0;
 		}
 		for (int i = 10; i < 20 && i < time_steps_; i++)
 		{
-			xt::view(v_noises, i, xt::all(), 0) = -0.02 * (i - 9);
+			xt::view(v_noises, i, xt::all(), 0) = -v_limit_ * 0.1 * (i - 9);
 			xt::view(w_noises, i, xt::all(), 0) = 0;
 		}
 		for (int i = 20; i < 30 && i < time_steps_; i++)
 		{
 			xt::view(v_noises, i, xt::all(), 0) = 0;
-			xt::view(w_noises, i, xt::all(), 0) = 0.05 * (i - 19);
+			xt::view(w_noises, i, xt::all(), 0) = w_limit_ * 0.1 * (i - 19);
 		}
 		for (int i = 30; i < 40 && i < time_steps_; i++)
 		{
 			xt::view(v_noises, i, xt::all(), 0) = 0;
-			xt::view(w_noises, i, xt::all(), 0) = -0.05 * (i - 29);
+			xt::view(w_noises, i, xt::all(), 0) = -w_limit_ * 0.1 * (i - 29);
 		}
 	}
 
@@ -337,11 +347,13 @@ namespace mppi::optimization
 
 		auto v = getBatchesLinearVelocities();
 		auto w = getBatchesAngularVelocities();
-		auto yaw = xt::cumsum(w * model_dt_, 1);
+		double initial_yaw = tf2::getYaw(pose.pose.orientation);
+		xt::xtensor<T, 2> yaw = initial_yaw + xt::cumsum(w * model_dt_, 1);
 
-		xt::view(yaw, xt::all(), xt::range(1, _)) =
-			xt::view(yaw, xt::all(), xt::range(_, -1));
-		xt::view(yaw, xt::all(), xt::all()) += tf2::getYaw(pose.pose.orientation);
+		auto yaw_offseted = yaw;
+		xt::view(yaw_offseted, xt::all(), xt::range(1, _)) =
+			xt::eval(xt::view(yaw, xt::all(), xt::range(_, -1)));
+		xt::view(yaw_offseted, xt::all(), 0) = initial_yaw;
 
 		auto v_x = v * xt::cos(yaw);
 		auto v_y = v * xt::sin(yaw);
@@ -480,7 +492,7 @@ namespace mppi::optimization
 
 				if (minDistToUntraversableFromPose(traj_pos_x, traj_pos_y, slope_traversability_grid_, dist_to_untraversable))
 				{
-					if (robotOnUntraversable(dist_to_untraversable))
+					if (robotOnUntraversable(dist_to_untraversable) && (j > 1))
 					{
 						is_closest_point_inflated = false;
 						costs[i] = collision_cost_value;
@@ -623,7 +635,6 @@ namespace mppi::optimization
 		xt::xtensor<T, 2> slope_at_grid = xt::ones<T>({grid_map_size(0), grid_map_size(1)}) * (-1);
 		xt::xtensor<T, 2> roughness_at_grid = xt::ones<T>({grid_map_size(0), grid_map_size(1)}) * (-1);
 
-		bool has_one_known = false;
 		for (size_t batch = 0; batch < static_cast<size_t>(batch_size_); batch++)
 		{
 			bool unknown = false;
@@ -659,20 +670,24 @@ namespace mppi::optimization
 					}
 					else
 					{
-						costs(batch) = unknown_cost_value;
-						unknown = true;
-						break;
+						if (step > 0)
+						{
+							costs(batch) = unknown_cost_value;
+							unknown = true;
+							break;
+						}
 					}
 				}
 			}
 
 			if (not unknown)
 			{
-				has_one_known = true;
 				slp_cost(batch) = xt::amax(slope_values)[0];
 				rgh_cost(batch) = xt::amax(roughness_values)[0];
+				double slp_cost_of_tail = xt::amax(xt::view(slope_values, xt::range(2, xt::placeholders::_)))[0];
+				double rgh_cost_of_tail = xt::amax(xt::view(roughness_values, xt::range(2, xt::placeholders::_)))[0];
 
-				if(slp_cost(batch) > slope_crit_ or rgh_cost(batch) > roughness_crit_)
+				if(slp_cost_of_tail > slope_crit_ or rgh_cost_of_tail > roughness_crit_)
 				{
 					costs(batch) = collision_cost_value;
 					// std::cout << "Collision\n";
@@ -689,9 +704,7 @@ namespace mppi::optimization
 	template <typename T, typename Model>
 	bool Optimizer<T, Model>::slopeRoughnessAtPose(const T &x, const T &y, T &slp, T &rgh) const
 	{
-		auto t1 = std::chrono::high_resolution_clock::now();
 		xt::xtensor<T, 2> footprint = footprintPointsAtPose(x, y);
-		auto t2 = std::chrono::high_resolution_clock::now();
 
 		if (footprint.shape()[0] < 4)
 		{
@@ -934,8 +947,13 @@ namespace mppi::optimization
 		if (min_cost >= unknown_cost_value)
 		{
 			control_sequence_ *= 0.;
+<<<<<<< HEAD
 			// std::cout << "LOCAL PATH NOT FOUND!!!" << std::endl;
 			// throw nav2_core::PlannerException("No legal trajectories found");
+=======
+			//std::cout << "LOCAL PATH NOT FOUND!!!" << std::endl;
+			throw nav2_core::PlannerException("No legal trajectories found");
+>>>>>>> 4b77fe41d292397f743520e4552882ccb6ccbf33
 		}
 	}
 
