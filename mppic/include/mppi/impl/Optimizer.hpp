@@ -167,7 +167,6 @@ namespace mppi::optimization
 		
 		if (predefined_trajectories_on_cold_start_ && (xt::amax(xt::abs(control_sequence_))[0] < 0.01))
 		{
-			RCLCPP_INFO(logger_, "Zero control sequence. Predefined trajectories was added");
 			addStrajghtTrajectories(v_noises, w_noises);
 		}
 		return control_sequence_ + xt::concatenate(xt::xtuple(v_noises, w_noises), 2);
@@ -308,12 +307,24 @@ namespace mppi::optimization
 
 		auto x = pose.pose.position.x + xt::cumsum(v_x * model_dt_, 0);
 		auto y = pose.pose.position.y + xt::cumsum(v_y * model_dt_, 0);
+		xt::xtensor<T, 1> z = xt::zeros<T>({time_steps_});
+
+		if (obstacle_avoidance_method_ != COSTMAP_METHOD)
+		{
+			for(int64_t step = 0; step < time_steps_; step++)
+			{
+				grid_map::Position point(x[step], y[step]);
+				std::string layer_name = "elevation";
+				z[step] = grid_map_->atPosition(layer_name, point);
+			}
+		}
 
 		return xt::concatenate(
 			xt::xtuple(
 				xt::view(x, xt::all(), xt::newaxis()),
 				xt::view(y, xt::all(), xt::newaxis()),
-				xt::view(yaw, xt::all(), xt::newaxis())),
+				xt::view(yaw, xt::all(), xt::newaxis()),
+				xt::view(z, xt::all(), xt::newaxis())),
 			1);
 	}
 
@@ -338,11 +349,27 @@ namespace mppi::optimization
 		auto x = pose.pose.position.x + xt::cumsum(v_x * model_dt_, 1);
 		auto y = pose.pose.position.y + xt::cumsum(v_y * model_dt_, 1);
 
+		xt::xtensor<T, 2> z = xt::zeros<T>({batch_size_, time_steps_});
+
+		if (obstacle_avoidance_method_ != COSTMAP_METHOD)
+		{
+			for(int64_t batch = 0; batch < batch_size_; batch++)
+			{
+				for(int64_t step = 0; step < time_steps_; step++)
+				{
+					grid_map::Position point(x(batch, step), y(batch, step));
+					std::string layer_name = "elevation";
+					z(batch, step) = grid_map_->atPosition(layer_name, point);
+				}
+			}
+		}
+
 		return xt::concatenate(
 			xt::xtuple(
 				xt::view(x, xt::all(), xt::all(), xt::newaxis()),
 				xt::view(y, xt::all(), xt::all(), xt::newaxis()),
-				xt::view(yaw, xt::all(), xt::all(), xt::newaxis())),
+				xt::view(yaw, xt::all(), xt::all(), xt::newaxis()),
+				xt::view(z, xt::all(), xt::all(), xt::newaxis())),
 			2);
 	}
 
@@ -457,6 +484,7 @@ namespace mppi::optimization
 					{
 						is_closest_point_inflated = false;
 						costs[i] = collision_cost_value;
+						// std::cout << "Collision\n";
 						break;
 					}
 					if (dist_to_untraversable < min_dist)
@@ -647,6 +675,7 @@ namespace mppi::optimization
 				if(slp_cost(batch) > slope_crit_ or rgh_cost(batch) > roughness_crit_)
 				{
 					costs(batch) = collision_cost_value;
+					// std::cout << "Collision\n";
 				}
 				else
 				{
@@ -906,7 +935,7 @@ namespace mppi::optimization
 		{
 			control_sequence_ *= 0.;
 			// std::cout << "LOCAL PATH NOT FOUND!!!" << std::endl;
-			throw nav2_core::PlannerException("No legal trajectories found");
+			// throw nav2_core::PlannerException("No legal trajectories found");
 		}
 	}
 

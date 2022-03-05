@@ -47,8 +47,7 @@ public:
     for (size_t i = 0; i < size; i++) {
       double blue_component = 1 - static_cast<double>(i) / size;
       double green_component = static_cast<double>(i) / size;
-
-      auto pose = createPose(trajectory(i, 0), trajectory(i, 1), 0.06);
+      auto pose = createPose(trajectory(i, 0), trajectory(i, 1), trajectory(i, 3) + 0.06);
       auto scale = i != size - 1 ? createScale(0.03, 0.03, 0.07) :
         createScale(0.10, 0.10, 0.10);
 
@@ -75,7 +74,7 @@ public:
         double blue_component = 1 - static_cast<double>(j) / shape[1];
         double green_component = static_cast<double>(j) / shape[1];
 
-        auto pose = createPose(trajectories(i, j, 0), trajectories(i, j, 1), 0.03);
+        auto pose = createPose(trajectories(i, j, 0), trajectories(i, j, 1), trajectories(i, j, 3) + 0.03);
         auto scale = createScale(0.03, 0.03, 0.03);
         auto color = createColor(0, green_component, blue_component, 1);
         auto marker = createMarker(marker_id_++, pose, scale, color, frame_id_);
