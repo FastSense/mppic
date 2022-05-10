@@ -325,7 +325,15 @@ namespace mppi::optimization
 			{
 				grid_map::Position point(x[step], y[step]);
 				std::string layer_name = "elevation";
-				z[step] = grid_map_->atPosition(layer_name, point);
+				if(grid_map_->isInside(point))
+				{
+					z[step] = grid_map_->atPosition(layer_name, point);
+				}
+				else
+				{
+					z[step] = 0.0;
+				}
+				
 			}
 		}
 
@@ -371,7 +379,15 @@ namespace mppi::optimization
 				{
 					grid_map::Position point(x(batch, step), y(batch, step));
 					std::string layer_name = "elevation";
-					z(batch, step) = grid_map_->atPosition(layer_name, point);
+					if(grid_map_->isInside(point))
+					{
+						z(batch, step) = grid_map_->atPosition(layer_name, point);
+					}
+					else
+					{
+						z(batch, step) = 0.0;
+					}
+					
 				}
 			}
 		}
@@ -404,17 +420,12 @@ namespace mppi::optimization
 		auto &&path_tensor = geometry::toTensor<T>(global_plan);
 
 		evalBackwardMotionCost(batches_of_trajectories, costs);
-		// std::cout << "Backward motion cost: " << costs(0) << std::endl;
 
 		approx_reference_cost_ ? evalApproxReferenceCost(batches_of_trajectories, path_tensor, costs) : evalReferenceCost(batches_of_trajectories, path_tensor, costs);
-		// std::cout << "Plus reference cost: " << costs(0) << std::endl;
 
 		evalGoalCost(batches_of_trajectories, path_tensor, costs);
-		// std::cout << "Plus goal cost: " << costs(0) << std::endl;
 
 		evalGoalAngleCost(batches_of_trajectories, path_tensor, robot_pose, costs);
-		// std::cout << "Plus goal angle cost: " << costs(0) << std::endl;
-		// auto t4 = std::chrono::high_resolution_clock::now();
 
 		if (obstacle_avoidance_method_ == COSTMAP_METHOD)
 		{
@@ -422,7 +433,7 @@ namespace mppi::optimization
 		}
 		else if (obstacle_avoidance_method_ == SLOPE_TRAVERSABILITY_METHOD)
 		{
-			evalSlopeTraversabilityCost(batches_of_trajectories, robot_pose, costs);
+			evalSlopeTraversabilityCost(batches_of_trajectories, costs);
 		}
 		else if (obstacle_avoidance_method_ == SLOPE_ROUGHNESS_METHOD)
 		{
@@ -432,10 +443,6 @@ namespace mppi::optimization
 		{
 			evalObstacleCost(batches_of_trajectories, costs);
 		}
-		// std::cout << "Plus obstacle cost: " << costs(0) << std::endl;
-		// auto t5 = std::chrono::high_resolution_clock::now();
-		// auto dt = std::chrono::duration_cast<std::chrono::duration<double>>(t5 - t4);
-		// std::cout << "Time for eval slope roughness cost: " << dt.count() << std::endl;
 		return costs;
 	}
 
@@ -462,7 +469,6 @@ namespace mppi::optimization
 	template <typename T, typename Model>
 	void Optimizer<T, Model>::evalSlopeTraversabilityCost(
 		const auto &batches_of_trajectories_points,
-		const geometry_msgs::msg::PoseStamped &robot_pose,
 		auto &costs) const
 	{
 		size_t rows, cols;
@@ -496,7 +502,6 @@ namespace mppi::optimization
 					{
 						is_closest_point_inflated = false;
 						costs[i] = collision_cost_value;
-						// std::cout << "Collision\n";
 						break;
 					}
 					if (dist_to_untraversable < min_dist)
@@ -947,13 +952,7 @@ namespace mppi::optimization
 		if (min_cost >= unknown_cost_value)
 		{
 			control_sequence_ *= 0.;
-<<<<<<< HEAD
-			// std::cout << "LOCAL PATH NOT FOUND!!!" << std::endl;
-			// throw nav2_core::PlannerException("No legal trajectories found");
-=======
-			//std::cout << "LOCAL PATH NOT FOUND!!!" << std::endl;
 			throw nav2_core::PlannerException("No legal trajectories found");
->>>>>>> 4b77fe41d292397f743520e4552882ccb6ccbf33
 		}
 	}
 

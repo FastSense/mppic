@@ -33,7 +33,7 @@ public:
   /**
    * @brief transform global plan to local applying constraints,
    * then prune global_plan_
-   *
+   * @param robot_pose current position of the robot
    * @return global plan in local frame
    */
   auto transformPath(const geometry_msgs::msg::PoseStamped & robot_pose)

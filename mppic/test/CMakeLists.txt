@@ -1,5 +1,4 @@
 if(mppic_BUILD_TESTING)
-  # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
   enable_testing()
 
   add_library(catch_main STATIC catch_main.cpp)

@@ -47,23 +47,51 @@ namespace mppi::optimization
 		void on_activate() {}
 		void on_deactivate() {}
 
+		/**
+		 * @brief Calculates control for robot in position robot_pose with velocity robot_speed based on plan
+		 * 
+		 * @param robot_pose current robot position
+		 * @param robot_speed current robot velocity
+		 * @param plan current global path
+		 * @return new robot velocity
+		 */
 		auto evalNextBestControl(
 			const geometry_msgs::msg::PoseStamped &robot_pose,
 			const geometry_msgs::msg::Twist &robot_speed,
 			const nav_msgs::msg::Path &plan)
 			-> geometry_msgs::msg::TwistStamped;
 
+		/**
+		 * @brief Returns the Generated Trajectories object
+		 * 
+		 * @return tensor of shape [ batch_size, time_steps, 3 ]  where 3 stands for x, y, yaw
+		 */
 		auto getGeneratedTrajectories() const
 			-> xt::xtensor<T, 3>
 		{
 			return generated_trajectories_;
 		}
 
+		/**
+		 * @brief Applies the velocity sequence to the batch
+		 * 
+		 * @param[in] velocities_sequence tensor of shape [ time_steps, 2 ] where 2 stands for robot linear and angluar velocities
+		 * @param[in] initial_speed velocity in form of ROS Twist
+		 * @param[out] batch tensor of shape [ time_steps, 5 ] where 5 stands for robot linear, angluar velocities, linear, angular control velocities, dt (time on which this control will be applied)
+		 */
 		void propagateSequenceVelocities(
 			const auto &velocities_sequence,
 			const geometry_msgs::msg::Twist &initial_speed,
 			auto &batch) const;
 
+		/**
+		 * @brief Creates trajectory based on control sequence and initial state
+		 * 
+		 * @param robot_pose current robot position
+		 * @param robot_speed current robot velocity
+		 * 
+		 * @return tensor of shape [ time_steps, 3 ]  where 3 stands for x, y, yaw
+		 */
 		auto evalTrajectoryFromControlSequence(
 			const geometry_msgs::msg::PoseStamped &robot_pose,
 			const geometry_msgs::msg::Twist &robot_speed) const
@@ -74,9 +102,11 @@ namespace mppi::optimization
 		void resetBatches();
 
 		/**
-		 * @brief Invoke generateNoisedControlBatches, assign result tensor to batches_ controls dimensions
+		 * @brief Invokes generateNoisedControlBatches, assign result tensor to batches_ controls dimensions
 		 * and integrate recieved controls in trajectories
-		 *
+		 * @param robot_pose current robot position
+		 * @param robot_speed current robot velocity
+		 * 
 		 * @return trajectories: tensor of shape [ batch_size_, time_steps_, 3 ]  where 3 stands for x, y, yaw
 		 */
 		auto generateNoisedTrajectories(
@@ -85,7 +115,7 @@ namespace mppi::optimization
 			-> xt::xtensor<T, 3>;
 
 		/**
-		 * @brief Generate random controls by gaussian noise with mean in
+		 * @brief Generates random controls by gaussian noise with mean in
 		 * control_sequence_
 		 *
 		 * @return Control batches tensor of shape [ batch_size_, time_steps_, 2] where 2 stands for v, w
@@ -93,21 +123,35 @@ namespace mppi::optimization
 		auto generateNoisedControlBatches() const
 			-> xt::xtensor<T, 3>;
 
+		/**
+		 * @brief Applies dynamic constraints of the robot to the sequence of controls  
+		 */
 		void applyControlConstraints();
 
+		/**
+		 * @brief Adds a set of predefined controls (for straight trajectories) to the random generated set of controls
+		 * 
+		 * @param[in, out] v_noises linear control sequences
+		 * @param[in, out] w_noises angular control sequences
+		 */
 		void addStrajghtTrajectories(xt::xtensor<T, 3> &v_noises, xt::xtensor<T, 3> &w_noises) const;
 
 		/**
-		 * @brief Invoke setBatchesInitialVelocities and propagateBatchesVelocitiesFromInitials
+		 * @brief Invokes setBatchesInitialVelocities and propagateBatchesVelocitiesFromInitials
 		 *
-		 * @param twist current robot speed
+		 * @param robot_speed current robot speed
 		 */
 		void evalBatchesVelocities(const geometry_msgs::msg::Twist &robot_speed);
 
+		/**
+		 * @brief Sets the initial velocity for all batches 
+		 * 
+		 * @param robot_speed initial velocity 
+		 */
 		void setBatchesInitialVelocities(const geometry_msgs::msg::Twist &robot_speed);
 
 		/**
-		 * @brief predict and propagate velocities in batches_ using model
+		 * @brief Predicts and propagates velocities in batches_ using model
 		 * for time horizont equal to time_steps_
 		 */
 		void propagateBatchesVelocitiesFromInitials();
@@ -121,7 +165,7 @@ namespace mppi::optimization
 			-> xt::xtensor<T, 2>;
 
 		/**
-		 * @brief Evaluate cost for each batch
+		 * @brief Evaluates cost for each batch
 		 *
 		 * @param batches_of_trajectories batch of trajectories: tensor of shape [ batch_size_, time_steps_, 3 ]
 		 * where 3 stands for x, y, yaw
@@ -134,18 +178,19 @@ namespace mppi::optimization
 			-> xt::xtensor<T, 1>;
 
 		/**
-		 * @brief Evaluate cost related to backward motion (forward motion is safer and more efficient)
+		 * @brief Evaluates and adds to cost values related to backward motion (forward motion is safer and more efficient) 
 		 *
-		 * @param batches_of_trajectories
-		 * @param costs [out] add reference cost values to this tensor
+		 * @param[in] batches_of_trajectories batch of trajectories: tensor of shape [ batch_size_, time_steps_, 3 ] where 3 stands for x, y, yaw
+		 * @param[out] costs Cost for each batch, tensor of shape [ batch_size ]
 		 */
 		void evalBackwardMotionCost(const auto &batches_of_trajectories_points, auto &costs) const;
 
 		/**
-		 * @brief Evaluate cost related to trajectories path alignment
+		 * @brief Evaluates and adds to cost values related to trajectories path alignment
 		 *
-		 * @param batches_of_trajectories
-		 * @param costs [out] add reference cost values to this tensor
+		 * @param[in] batches_of_trajectories batch of trajectories: tensor of shape [ batch_size_, time_steps_, 3 ] where 3 stands for x, y, yaw
+		 * @param[in] global_plan reference trajectory
+		 * @param[out] costs Cost for each batch, tensor of shape [ batch_size ]
 		 */
 		void evalReferenceCost(
 			const auto &batches_of_trajectories,
@@ -153,10 +198,11 @@ namespace mppi::optimization
 			auto &costs) const;
 
 		/**
-		 * @brief Evaluate cost related to trajectories path alignment using approximate path to segment function
+		 * @brief Evaluates and adds to cost values related to trajectories path alignment using approximate path to segment function
 		 *
-		 * @param batches_of_trajectories
-		 * @param costs [out] add reference cost values to this tensor
+		 * @param[in] batches_of_trajectories batch of trajectories: tensor of shape [ batch_size_, time_steps_, 3 ] where 3 stands for x, y, yaw
+		 * @param[in] global_plan reference trajectory
+		 * @param[out] costs Cost for each batch, tensor of shape [ batch_size ]
 		 */
 		void evalApproxReferenceCost(
 			const auto &batches_of_trajectories,
@@ -164,9 +210,11 @@ namespace mppi::optimization
 			auto &costs) const;
 
 		/**
-		 * @brief Evaluate cost related to goal following
+		 * @brief Evaluates and adds to cost values related to goal following
 		 *
-		 * @param costs [out] add reference cost values to this tensor
+		 * @param[in] batches_of_trajectories batch of trajectories: tensor of shape [ batch_size_, time_steps_, 3 ] where 3 stands for x, y, yaw
+		 * @param[in] global_plan reference trajectory
+		 * @param[out] costs Cost for each batch, tensor of shape [ batch_size ]
 		 */
 		void evalGoalCost(
 			const auto &batch_of_trajectories,
@@ -176,28 +224,61 @@ namespace mppi::optimization
 		/**
 		 * @brief Evaluate cost related to obstacle avoidance
 		 *
-		 * @tparam B tensor type of batches trajectories
-		 * @tparam C costs type
-		 * @param costs [out] add obstacle cost values to this tensor
+		 * @param[in] batches_of_trajectories batch of trajectories: tensor of shape [ batch_size_, time_steps_, 3 ] where 3 stands for x, y, yaw
+		 * @param[out] costs Cost for each batch, tensor of shape [ batch_size ]
 		 */
 		void evalObstacleCost(const auto &batch_of_trajectories, auto &costs) const;
 
 		/**
-		 * @brief TODO
+		 * @brief Evaluate cost using Slope-Roughness method
 		 *
-		 * @param batches_of_trajectories_points
-		 * @param costs
+		 * @param[in] batches_of_trajectories batch of trajectories: tensor of shape [ batch_size_, time_steps_, 3 ] where 3 stands for x, y, yaw
+		 * @param[out] costs Cost for each batch, tensor of shape [ batch_size ]
 		 */
 		void evalSlopeRoughnessCost(const auto &batches_of_trajectories_points, auto &costs) const;
 
+		/**
+		 * @brief Calculates robot circular footprint at position (x, y) using footprint_radius parameter
+		 * 
+		 * @param x x-coordinate of robot position
+		 * @param y y-coordinate of robot position
+		 * @return tensor of shape [ n, 2], where n -- number of points inside footprint, 2 stands for x, y
+		 */
 		auto footprintPointsAtPose(const T &x, const T &y) const -> xt::xtensor<T, 2>;
 
+		/**
+		 * @brief Calculates Slope-Roughness metric at position (x, y) using footprint_radius parameter
+		 * 
+		 * @param[in] x x-coordinate of robot position
+		 * @param[in] y y-coordinate of robot position
+		 * @param[out] slp slope part of metric
+		 * @param[out] rgh roughness part of metric
+		 * @return it is possible to compute metric at position (x, y).   
+		 */
 		bool slopeRoughnessAtPose(const T &x, const T &y, T &slp, T &rgh) const;
 
-		void evalSlopeTraversabilityCost(const auto &batches_of_trajectories_points, const geometry_msgs::msg::PoseStamped &robot_pose, auto &costs) const;
+		/**
+		 * @brief Evaluate cost using Slope-Traversability method
+		 *
+		 * @param[in] batches_of_trajectories batch of trajectories: tensor of shape [ batch_size_, time_steps_, 3 ] where 3 stands for x, y, yaw
+		 * @param[out] costs Cost for each batch, tensor of shape [ batch_size ]
+		 */
+		void evalSlopeTraversabilityCost(const auto &batches_of_trajectories_points, auto &costs) const;
 
+		/**
+		 * @brief Computes minimal distance to untraversable area from position (x, y)
+		 * 
+		 * @param[in] x x-coordinate of robot position
+		 * @param[in] y y-coordinate of robot position
+		 * @param[in, out] slope_traversability_dist_grid_ matrix of known distance values
+		 * @param[out] dist minimal distance to untraversable area from position (x, y)
+		 * @return it is possible to compute metric at position (x, y).    
+		 */
 		bool minDistToUntraversableFromPose(const T &x, const T &y, auto &slope_traversability_dist_grid_, T &dist) const;
-
+		
+		/**
+		 * @brief Starts Least Squares calculations
+		 */
 		void fitPlane(
 			const xt::xtensor<T, 2> &points,
 			T &a,
@@ -208,18 +289,29 @@ namespace mppi::optimization
 		/**
 		 * @brief Evaluate cost related to robot orientation at goal pose (considered only if robot near last goal in current plan)
 		 *
-		 * @tparam P type of global plan (tensor like)
-		 * @tparam B tensor type of batches trajectories
-		 * @tparam C costs type
-		 * @param costs [out] add goal angle cost values to this tensor
+		 * @param[in] batches_of_trajectories batch of trajectories: tensor of shape [ batch_size_, time_steps_, 3 ] where 3 stands for x, y, yaw
+		 * @param[in] global_plan reference trajectory
+		 * @param[in] robot_pose current robot position
+		 * @param[out] costs Cost for each batch, tensor of shape [ batch_size ]
 		 */
 		void evalGoalAngleCost(
 			const auto &batch_of_trajectories,
 			const auto &global_plan,
 			const geometry_msgs::msg::PoseStamped &robot_pose,
 			auto &costs) const;
-
+		
+		/**
+		 * @brief Returns cost of position (x, y) using costmap2d
+		 * 
+		 * @param x x-coordinate of robot position
+		 * @param y y-coordinate of robot position
+		 * @return cost of position (x, y) using costmap2d
+		 */
 		auto costAtPose(const double &x, const double &y) const -> double;
+		
+		/**
+		 * @brief Checks, that robot is in collision with static obstacle using costmap2d
+		 */
 		bool inCollision(unsigned char cost) const;
 
 		/**
@@ -236,7 +328,6 @@ namespace mppi::optimization
 
 		/**
 		 * @brief Get first control from control_sequence_
-		 *
 		 */
 		auto getControlFromSequence(const auto &stamp, const std::string &frame)
 			-> geometry_msgs::msg::TwistStamped;

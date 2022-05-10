@@ -1,21 +1,23 @@
 cmake_minimum_required(VERSION 3.5)
 project(mppic)
 
-set(CMAKE_BUILD_TYPE Release) # temporary hack coz conan rise error with colcon build without setting build type
+set(CMAKE_BUILD_TYPE Release) 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-but-set-variable -Wno-error=uninitialized -Wno-error=unused-value -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=deprecated -Wno-error=narrowing -Wno-error=maybe-uninitialized -Wno-error=deprecated -Wno-error=pedantic -Wno-error=unused-but-set-variable -Wno-error=uninitialized -Wno-error=unused-value -Wno-error=parentheses -Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=narrowing -Wno-error=maybe-uninitialized -fPIC")
 
-# set(tinyxml2_SHARED_LIBS)
 
 find_package(ament_cmake REQUIRED)
 find_package(nav2_common REQUIRED)
 
-option(mppic_BUILD_TESTING    "Build MPPI Controller with tests")
-option(mppic_BUILD_BENCHMARKS "Include benchmarks into tests")
-option(mppic_TEST_DEBUG_INF   "Show debug info during testing")
+option(mppic_BUILD_TESTING     "Build MPPI Controller with tests")
+option(mppic_BUILD_BENCHMARKS  "Include benchmarks into tests")
+option(mppic_BUILD_EXPERIMENTS "Build executable for independent MPPI experimental test")
+option(mppic_TEST_DEBUG_INF    "Show debug info during testing")
 
 set(mppic_BUILD_TESTING ${BUILD_TESTING})
 set(mppic_BUILD_BENCHMARKS ${BUILD_BENCHMARKS})
+set(mppic_BUILD_EXPERIMENTS ${BUILD_EXPERIMENTS})
 set(mppic_TEST_DEBUG_INF ${TEST_DEBUG_INFO})
+
 
 
 include(CTest)

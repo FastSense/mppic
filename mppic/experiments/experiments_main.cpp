@@ -140,6 +140,7 @@ void read_parameters(std::string config_file, std::vector<rclcpp::Parameter> &pa
 	}
 }
 
+
 void read_map(std::string map_file, grid_map::GridMap &grid_map)
 {
 	std::string layer_name = "elevation";
@@ -198,6 +199,7 @@ void read_map(std::string map_file, grid_map::GridMap &grid_map)
 	}
 }
 
+
 void read_tasks(std::string tasks_file, std::vector<geometry_msgs::msg::Pose> &starts, std::vector<geometry_msgs::msg::Pose> &goals)
 {
 	tinyxml2::XMLDocument xml_tasks;
@@ -232,7 +234,6 @@ void read_tasks(std::string tasks_file, std::vector<geometry_msgs::msg::Pose> &s
 				goal.orientation.z = goal_elem->FloatAttribute("q_z");
 				goal.orientation.w = goal_elem->FloatAttribute("q_w");
 
-				// std::cout << "Task " << task_count << ": (" << start.position.x << ", " << start.position.y << ") -> (" << goal.position.x << ", " << goal.position.y << ")\n";
 				starts.push_back(start);
 				goals.push_back(goal);
 				task_count++;
@@ -252,7 +253,7 @@ void read_tasks(std::string tasks_file, std::vector<geometry_msgs::msg::Pose> &s
 	}
 }
 
-// TODO
+
 void fill_reference_path(geometry_msgs::msg::Pose &start, geometry_msgs::msg::Pose &goal, geometry_msgs::msg::PoseStamped path_pose_template, nav_msgs::msg::Path &reference_path)
 {
 	double interpolation_resolution_ = 0.1;
@@ -278,10 +279,12 @@ void fill_reference_path(geometry_msgs::msg::Pose &start, geometry_msgs::msg::Po
 	reference_path.poses.push_back(path_pose_template);
 }
 
+
 void print_grid_map(grid_map::GridMap &grid_map, const std::string &layer_name)
 {
 	std::cout << grid_map.get(layer_name) << std::endl;
 }
+
 
 int main(int argc, char *argv[])
 {
@@ -317,9 +320,6 @@ int main(int argc, char *argv[])
 	// map reading and creation
 	auto grid_map = std::make_shared<grid_map::GridMap>();
 	read_map(map_file, *grid_map);
-
-
-	// print_grid_map(*grid_map, "elevation");
 
 	// reading tasks and configuring mppi
 	std::vector<geometry_msgs::msg::Pose> starts;
@@ -377,16 +377,14 @@ int main(int argc, char *argv[])
 		size_t step;
 		for (step = 0; step < steps; step++)
 		{
-			// std::cout << "Step " << step << "\n";
 
 			std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
 			auto control = optimizer.evalNextBestControl(init_robot_pose, init_robot_vel, reference_path);
 
 			std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-			// std::cout << "Time difference = " <<  << "[s]" << std::endl;
 			time_sum += static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) / 1e6;
-			// std::cout << "Opt end\n";
+
 			float v = control.twist.linear.x;
 			float w = control.twist.angular.z;
 
@@ -400,10 +398,6 @@ int main(int argc, char *argv[])
 
 			myfile << x << " " << y << " " << yaw << "\n";
 			dist_to_goal = std::hypot(goals[task].position.x - x, goals[task].position.y - y);
-			// grid_map::Position pos(x, y);
-		
-			// std::string layer_name = "elevation";
-			// std::cout << grid_map->atPosition(layer_name, pos) << "\n";
 
 			if (dist_to_goal < delta)
 			{
@@ -422,7 +416,6 @@ int main(int argc, char *argv[])
 			init_robot_pose.pose.orientation = tf2::toMsg(orient);
 			fill_reference_path(init_robot_pose.pose, goals[task], pose_template, reference_path);
 
-			// TODO: Save result to txt file
 		}
 		double time_avg = time_sum / step;
 

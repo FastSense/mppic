@@ -1,6 +1,7 @@
-# Local planners 
+# Navigation in 2.5D Environment 
 
 ## Overview
 
-Repository contains following local planners:
-  * [MPPI Local Planner](/mppic/)
+Repository contains following packages:
+  * [MPPI Local Planner for ROS2 and 2.5D environment](/mppic/)
+  * [Simple publisher of height map data in for of grid_map](/grid_map_publisher/)

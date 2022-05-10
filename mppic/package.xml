@@ -5,7 +5,8 @@
   <version>1.0.0</version>
   <description>mppic</description>
   <maintainer email="budyakov.aleksei@gmail.com">Aleksei Budyakov</maintainer>
-  <license>BSD-3-Clause</license>
+  <maintainer email="sadergachev@edu.hse.ru">Stepan Deragachev</maintainer>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

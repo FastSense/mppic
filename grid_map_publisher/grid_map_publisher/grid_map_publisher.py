@@ -1,7 +1,6 @@
 from numpy.core.defchararray import center
 import rclpy
 import numpy as np
-import matplotlib.pyplot as plt
 from rclpy.node import Node
 
 from std_msgs.msg import String
@@ -12,7 +11,7 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
 
-BIG_HEIGHT_VAL = 20
+BIG_HEIGHT_VAL = 100
 
 def numpy_to_multiarray(np_array):
     
@@ -35,6 +34,7 @@ def numpy_to_multiarray(np_array):
         multiarray.data.append(n)
 
     return multiarray
+
 
 def get_index(point, resolution, length):
     len_x = length[0]
@@ -76,26 +76,41 @@ def get_map_piece(full_map, point, new_len, resolution):
     return new_map
             
 
-
-
-class MinimalPublisher(Node):
+class GridMapPublisher(Node):
 
     def __init__(self):
         super().__init__('grid_map_publisher')
-        self.publisher_ = self.create_publisher(GridMap, 'elevation_map', 10)
-        timer_period = 0.5
+        
+        self.declare_parameter('grid_map_topic', 'elevation_map')
+        self.declare_parameter('path_to_map_file', 'grid_map.npz')
+        self.declare_parameter('height', 3.0)
+        self.declare_parameter('width', 3.0)
+        self.declare_parameter('resolution', 0.05)
+        self.declare_parameter('timer_period', 0.5)
+
+
+        topic = self.get_parameter('grid_map_topic')
+        map_file = self.get_parameter('path_to_map_file')
+        size_h = self.get_parameter('height')
+        size_w = self.get_parameter('width')
+        size_r = self.get_parameter('resolution')
+        period = self.get_parameter('timer_period')
+
+        timer_period = float(period.value)
+        self.new_len = (float(size_w.value), float(size_h.value))
+        self.resolution = float(size_r.value)
+
+
+        self.publisher_ = self.create_publisher(GridMap, topic.value, 10)
         self.timer = self.create_timer(timer_period, self.timer_callback)
-        self.full_map = np.float32(np.load('/home/user/ros2_ws/src/algorithms/local_planners/mppic/grid_map_publisher/grid_map_publisher/elevation_map_filtered.npz')['arr_0'])[0].transpose()
-        self.resolution = 0.05
+        self.full_map = np.float32(np.load(map_file.value)['arr_0'])[0].transpose()
+        
         self.to_frame = "odom"
         self.from_frame = "base_link"
-
-        self.new_len = (2, 2)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.get_logger().info('grid_map_publisher configured. Full map loaded')
-        print(self.full_map.shape)
 
     def timer_callback(self):
         trans = None
@@ -134,11 +149,11 @@ class MinimalPublisher(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    minimal_publisher = MinimalPublisher()
+    publisher = GridMapPublisher()
 
-    rclpy.spin(minimal_publisher)
+    rclpy.spin(publisher)
 
-    minimal_publisher.destroy_node()
+    publisher.destroy_node()
     rclpy.shutdown()
 
 

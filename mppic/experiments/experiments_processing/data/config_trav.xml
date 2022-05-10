@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <iteration_count                    type="int64"    value="3"/>
+    <lookahead_dist                     type="float64"  value="100.0"/>        
+    <time_steps                         type="int64"    value="50"/>                 
+    <batch_size                         type="int64"    value="200"/>  
+    <model_dt                           type="float64"  value="0.1"/>
+    <v_std                              type="float64"  value="0.1"/>
+    <w_std                              type="float64"  value="0.5"/>
+    <v_limit                            type="float64"  value="0.5"/>
+    <w_limit                            type="float64"  value="1.3"/>
+    <max_v_acc                          type="float64"  value="1.0"/>
+    <max_w_acc                          type="float64"  value="2.0"/>
+    <inflation_radius                   type="float64"  value="0.75"/>
+    <temperature                        type="float64"  value="0.25"/>
+    <reference_cost_power               type="float64"  value="1.0"/>
+    <reference_cost_weight              type="float64"  value="2.0"/>
+    <goal_cost_power                    type="float64"  value="1"/>
+    <goal_cost_weight                   type="float64"  value="30.0"/>
+    <goal_angle_cost_power              type="float64"  value="1.0"/>
+    <goal_angle_cost_weight             type="float64"  value="1.0"/>
+    <obstacle_cost_power                type="float64"  value="1"/>
+    <obstacle_cost_weight               type="float64"  value="10"/>
+    <inflation_cost_scaling_factor      type="float64"  value="3"/>
+    <threshold_to_consider_goal_angle   type="float64"  value="0.20"/>
+    <approx_reference_cost              type="bool"     value="false"/>
+    <backward_motion_cost_weight        type="float64"  value="50.0"/>
+
+    <obstacle_avoidance_method          type="string" value="slope_traversability"/>
+    
+    <slope_cost_power                   type="float64"  value="1.0"/>             
+    <slope_cost_weight                  type="float64"  value="10.0"/>      
+    <slope_crit                         type="float64"  value="0.2"/>             
+    <roughness_cost_power               type="float64"  value="1.0"/>        
+    <roughness_cost_weight              type="float64"  value="1000.0"/>      
+    <roughness_crit                     type="float64"  value="0.01"/>
+
+    <slope_traversability_delta         type="float64"  value="0.15"/>   
+    <slope_traversability_alpha         type="float64"  value="0.5"/>    
+    <slope_traversability_lambda        type="float64"  value="5.0"/>    
+    <slope_traversability_cost_power    type="float64"  value="1.0"/>  
+    <slope_traversability_cost_weight   type="float64"  value="20.0"/>
+    <footprint_radius                   type="float64"  value="0.3"/>
+    <predefined_trajectories_on_cold_start type="bool"     value="true"/>
+    
+    <step_dt                            type="float64"  value="0.1"/>
+    <steps                              type="int64"    value="1000"/>
+    <goal_delta                         type="float64"  value="0.3"/>
+</config>

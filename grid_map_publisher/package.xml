@@ -3,9 +3,9 @@
 <package format="3">
   <name>grid_map_publisher</name>
   <version>0.0.1</version>
-  <description>Package with simple grid_map publisher forn 2.5D navigation debug</description>
+  <description>Package with simple grid_map publisher for 2.5D navigation debug</description>
   <maintainer email="sadergachev@edu.hse.ru">user</maintainer>
-  <license>BSD-3-Clause</license>
+  <license>MIT</license>
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
@@ -13,9 +13,6 @@
   <exec_depend>tf_transformations</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>tf2_geometry_msgs</exec_depend>
-<!-- 
-  <depend>grid_map_core</depend>
-  <depend>grid_map_cv</depend> -->
   <exec_depend>grid_map_msgs</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
