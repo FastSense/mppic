@@ -193,7 +193,8 @@ namespace mppi::optimization
 
 		for (int i = 0; i < 10 && i < time_steps_; i++)
 		{
-			xt::view(v_noises, i, xt::all(), 0) = v_limit_ * 0.1 * (i + 1);
+			// xt::view(v_noises, i, xt::all(), 0) = v_limit_ * 0.1 * (i + 1);
+			xt::view(v_noises, i, xt::all(), 0) = 0;
 			xt::view(w_noises, i, xt::all(), 0) = 0;
 		}
 		for (int i = 10; i < 20 && i < time_steps_; i++)
@@ -924,9 +925,21 @@ namespace mppi::optimization
 		{
 			auto yaws = xt::view(batch_of_trajectories, xt::all(), xt::all(), 2);
 			auto goal_yaw = xt::view(global_plan, -1, 2);
+			xt::xtensor<T, 2> yaw_diffs = xt::abs(yaws - goal_yaw);
+
+			for (size_t batch = 0; batch < static_cast<size_t>(batch_size_); batch++)
+			{
+				for (size_t step = 0; step < static_cast<size_t>(time_steps_); step++)
+				{
+					if (yaw_diffs(batch, step) > xt::numeric_constants<T>::PI)
+					{
+						yaw_diffs(batch, step) = (2 * xt::numeric_constants<T>::PI) - yaw_diffs(batch, step);
+					}
+				}
+			}
 
 			costs += xt::pow(
-				xt::mean(xt::abs(yaws - goal_yaw), {1}) * goal_angle_cost_weight_,
+				xt::mean(yaw_diffs, {1}) * goal_angle_cost_weight_,
 				goal_angle_cost_power_);
 		}
 	}
@@ -949,6 +962,7 @@ namespace mppi::optimization
 		control_sequence_ = xt::sum(getBatchesControls() * softmaxes_expanded, 0);
 		constexpr T unknown_cost_value = std::numeric_limits<T>::max() / 2;
 		T min_cost = xt::amin(costs)[0];
+		
 		if (min_cost >= unknown_cost_value)
 		{
 			control_sequence_ *= 0.;

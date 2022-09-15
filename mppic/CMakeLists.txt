@@ -78,9 +78,11 @@ install(TARGETS mppic
   RUNTIME DESTINATION bin
 )
 
-install(TARGETS experiments
-  DESTINATION lib/${PROJECT_NAME}
-)
+if(mppic_BUILD_EXPERIMENTS)
+  install(TARGETS experiments
+    DESTINATION lib/${PROJECT_NAME}
+  )
+endif()
 
 install(DIRECTORY include/
   DESTINATION include/
